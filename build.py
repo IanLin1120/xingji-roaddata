@@ -15,6 +15,15 @@ MAIN = re.compile(r'^(motorway|motorway_link|trunk|trunk_link|primary|primary_li
 SVC = re.compile(r'^(service|track)$')
 FOOT = re.compile(r'^(footway|pedestrian|steps|path|cycleway)$')
 RAIL = re.compile(r'^(rail|light_rail|subway|narrow_gauge)$')
+BG = 0.05         # 自行車道格子(和 App 的 BIKE.G 一樣)
+CWV = re.compile(r'^(lane|track|shared_lane|opposite_lane|opposite_track)$'); CWS = re.compile(r'^(lane|track)$')
+def bike_kind(t):
+    hw = t.get('highway')
+    if hw == 'cycleway': return 'd'
+    if hw in ('path', 'footway', 'track') and t.get('bicycle') == 'designated': return 'd'
+    if CWV.match(t.get('cycleway', '')) or any(CWS.match(t.get('cycleway:' + s, '')) for s in ('right', 'left', 'both')): return 'l'
+    return None
+def bkey(lat, lon): return f"{math.floor(lat / BG)}_{math.floor(lon / BG)}"
 
 def want_way(t):
     hw = t.get('highway')
@@ -45,7 +54,7 @@ def pkey(ck):
 
 class H(osmium.SimpleHandler):
     def __init__(self):
-        super().__init__(); self.cells = {}
+        super().__init__(); self.cells = {}; self.bike = {}
     def cell(self, k):
         c = self.cells.get(k)
         if c is None: c = self.cells[k] = {'w': [], 'n': []}
@@ -58,6 +67,11 @@ class H(osmium.SimpleHandler):
             self.cell(ckey(lat, lon))['n'].append([n.id, round(lat, 6), round(lon, 6), 'x' if rw == 'level_crossing' else 's', t.get('crossing:barrier', '')])
     def way(self, w):
         t = {k.k: k.v for k in w.tags}
+        bk = bike_kind(t)
+        if bk:
+            g = [(round(nd.location.lat, 6), round(nd.location.lon, 6)) for nd in w.nodes if nd.location.valid()]
+            if len(g) >= 2:
+                m = g[len(g) // 2]; self.bike.setdefault(bkey(*m), []).append([bk, enc(g, 5)])
         if not want_way(t): return
         try: g = [(round(nd.location.lat, 6), round(nd.location.lon, 6)) for nd in w.nodes]
         except osmium.InvalidLocationError: g = [(round(nd.location.lat, 6), round(nd.location.lon, 6)) for nd in w.nodes if nd.location.valid()]
@@ -84,6 +98,17 @@ def main():
         a, b = map(int, pk.split('_'))
         man['packs'][pk] = {'f': fn, 'bb': [a * P, b * P, (a + 1) * P, (b + 1) * P], 'cells': len(ks), 'ways': nw, 'nodes': nn,
                             'size': os.path.getsize(os.path.join(out, fn))}
+    # 自行車道:全台一個檔;有道路的地方都放一格(沒有自行車道就是空格,App 才知道這格已經有資料)
+    bks = set(h.bike.keys())
+    for k in h.cells:
+        a, b = map(int, k.split('_')); bks.add(f"{math.floor(a * G / BG + 1e-9)}_{math.floor(b * G / BG + 1e-9)}")
+    with gzip.open(os.path.join(out, 'bike.txt.gz'), 'wt', encoding='utf-8', compresslevel=9) as f:
+        for k in sorted(bks): f.write(k + '\t' + json.dumps({'t': stamp, 'p': 1, 'w': h.bike.get(k, [])}, separators=(',', ':')) + '\n')
+    man['bike'] = {'f': 'bike.txt.gz', 'cells': len(bks), 'ways': sum(len(v) for v in h.bike.values()), 'size': os.path.getsize(os.path.join(out, 'bike.txt.gz'))}
+    vm = os.path.join(out, 'vec.json')
+    if os.path.exists(vm):
+        with open(vm) as f: man['vec'] = json.load(f)
+        os.remove(vm)
     with open(os.path.join(out, 'manifest.json'), 'w') as f: json.dump(man, f, ensure_ascii=False, separators=(',', ':'))
     tot = sum(p['size'] for p in man['packs'].values())
     print(f"{len(h.cells)} cells, {len(packs)} packs, {tot/1048576:.1f} MB, {time.time()-t0:.0f}s")
