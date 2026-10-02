@@ -19,7 +19,7 @@ jobs:
         run: curl -fL --retry 5 -o taiwan.osm.pbf https://download.geofabrik.de/asia/taiwan-latest.osm.pbf
       - name: 產生資料
         run: python3 build.py taiwan.osm.pbf out
-      - name: 發佈到 Releases(tag: data)
+      - name: "發佈到 Releases(標籤 data)"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
