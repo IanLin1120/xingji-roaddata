@@ -1,0 +1,28 @@
+name: 產生離線道路資料
+on:
+  schedule:
+    - cron: '17 19 * * 0'   # 每週一 03:17(台灣時間)
+  workflow_dispatch: {}
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - name: 安裝 osmium
+        run: pip install osmium
+      - name: 下載台灣 OpenStreetMap 資料
+        run: curl -fL --retry 5 -o taiwan.osm.pbf https://download.geofabrik.de/asia/taiwan-latest.osm.pbf
+      - name: 產生資料
+        run: python3 build.py taiwan.osm.pbf out
+      - name: 發佈到 Releases(tag: data)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view data >/dev/null 2>&1 || gh release create data --title "離線道路資料" --notes "由 OpenStreetMap 自動產生,每週更新。資料 © OpenStreetMap contributors (ODbL)。"
+          gh release upload data out/* --clobber
+          gh release edit data --notes "由 OpenStreetMap 自動產生,每週更新。最後更新:$(date -u +%Y-%m-%dT%H:%MZ)。資料 © OpenStreetMap contributors (ODbL)。"
