@@ -26,19 +26,11 @@ def dec(s, p=6):
             else: lon += d
         out.append((lat / 10**p, lon / 10**p))
     return out
-for wid, g in h.g.items():
-    a, b = g[0], g[-1]
-    q = ((a[0] * 3 + g[len(g)//2][0]) / 4, (a[1] * 3 + g[len(g)//2][1]) / 4) if len(g) > 2 else ((a[0]+b[0])/2, (a[1]+b[1])/2)
-    for name, L in (('end-to-end', [a, b]), ('to-quarter', [b, q])):
-        for c in ('auto', 'motor_scooter'):
-            for ig in (False, True):
-                co = {c: {'ignore_access': ig}}
-                j = post('/route', {'locations': [{'lat': x, 'lon': y} for x, y in L], 'costing': c, 'costing_options': co, 'units': 'kilometers'})
-                if 'trip' not in j: print(wid, name, c, ig, 'ERR', j); continue
-                lg = j['trip']['legs'][0]; sh = dec(lg['shape'])
-                print(wid, name, c, 'IGN' if ig else 'norm', 'len', j['trip']['summary']['length'], 'end', sh[-1], 'want', L[-1], [m.get('street_names') for m in lg['maneuvers']])
-                if ig:
-                    t = post('/trace_attributes', {'shape': [{'lat': x, 'lon': y} for x, y in sh], 'costing': c, 'costing_options': co, 'shape_match': 'edge_walk', 'filters': {'attributes': ['edge.way_id', 'edge.use', 'edge.road_class', 'edge.begin_shape_index', 'edge.end_shape_index'], 'action': 'include'}})
-                    print('   trace IGN', [(e.get('way_id'), e.get('use'), e.get('road_class'), e.get('begin_shape_index'), e.get('end_shape_index')) for e in t.get('edges', [])] if 'edges' in t else t)
-                    t2 = post('/trace_attributes', {'shape': [{'lat': x, 'lon': y} for x, y in sh], 'costing': c, 'shape_match': 'edge_walk', 'filters': {'attributes': ['edge.way_id'], 'action': 'include'}})
-                    print('   trace normal', t2 if 'edges' not in t2 else [e.get('way_id') for e in t2['edges']])
+g = h.g[198022103]; a, b = g[0], g[-1]
+for c, co in (('motor_scooter', {'ignore_access': True}), ('motor_scooter', {'ignore_access': True, 'service_penalty': 0, 'service_factor': 1}),
+              ('motor_scooter', {'ignore_access': True, 'service_penalty': 0, 'service_factor': 1, 'use_living_streets': 1, 'use_primary': 0.5}),
+              ('motor_scooter', {'ignore_access': True, 'shortest': True}), ('motorcycle', {'ignore_access': True}), ('motorcycle', {}),
+              ('auto', {'ignore_access': True}), ('auto', {'ignore_access': True, 'service_penalty': 80, 'service_factor': 3, 'use_living_streets': .15})):
+    j = post('/route', {'locations': [{'lat': a[0], 'lon': a[1]}, {'lat': b[0], 'lon': b[1]}], 'costing': c, 'costing_options': {c: co}, 'units': 'kilometers'})
+    if 'trip' not in j: print(c, co, 'ERR', j); continue
+    lg = j['trip']['legs'][0]; print(c, co, 'len', j['trip']['summary']['length'], 'time', j['trip']['summary']['time'], [m.get('street_names') for m in lg['maneuvers']])
