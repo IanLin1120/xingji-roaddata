@@ -9,7 +9,9 @@ class A(osmium.SimpleHandler):
     def way(s, w):
         t = {k.k: k.v for k in w.tags}; hw = t.get('highway')
         if not hw: return
-        if t.get('name') in NAMES: s.hit.append((w.id, dict(t)))
+        if t.get('name') in NAMES:
+            try: m = w.nodes[len(w.nodes)//2].location; s.hit.append((w.id, dict(t), round(m.lat,6), round(m.lon,6), w.nodes[0].ref, w.nodes[-1].ref))
+            except Exception: s.hit.append((w.id, dict(t)))
         refs = [n.ref for n in w.nodes]
         if CAR.match(hw) and t.get('access') not in ('no', 'private'): s.car.update(refs)
         elif hw in ('pedestrian', 'footway', 'path', 'living_street') and t.get('area') != 'yes':
@@ -18,7 +20,8 @@ class A(osmium.SimpleHandler):
             except Exception: pass
             s.ped.append((w.id, hw, t, refs, lat, lon))
 a = A(); a.apply_file(sys.argv[1], locations=True, idx='flex_mem')
-print('== 東民街 tags'); [print(i, t) for i, t in a.hit]
+print('== 東民街 tags'); [print(*h, 'end_car', h[4] in a.car if len(h)>4 else '', h[5] in a.car if len(h)>4 else '') for h in a.hit]
+import json; json.dump([h[2:4] for h in a.hit if len(h)>2], open('hits.json','w'))
 c = collections.Counter(); sf = collections.Counter(); ex = collections.defaultdict(list)
 for i, hw, t, refs, lat, lon in a.ped:
     nm = t.get('name', ''); street = bool(re.search(r'(街|路|巷|弄)(\d+[巷弄號])?$', nm)) or bool(re.search(r'\d+(巷|弄)$', nm))

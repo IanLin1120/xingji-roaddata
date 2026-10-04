@@ -1,6 +1,8 @@
 name: 探查行人路標記
 on:
   workflow_dispatch: {}
+permissions:
+  contents: write
 jobs:
   probe:
     runs-on: ubuntu-latest
@@ -11,4 +13,8 @@ jobs:
         with: { python-version: '3.12' }
       - run: pip install osmium
       - run: curl -fL --retry 5 -o taiwan.osm.pbf https://download.geofabrik.de/asia/taiwan-latest.osm.pbf
-      - run: python3 probe.py taiwan.osm.pbf
+      - run: |
+          python3 probe.py taiwan.osm.pbf > probe.txt 2>&1 || true
+          python3 vtest.py >> probe.txt 2>&1 || true
+          git config user.name probe; git config user.email probe@users.noreply.github.com
+          git checkout -B probe; git add -f probe.txt; git commit -qm probe; git push -f origin probe
