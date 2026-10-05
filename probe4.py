@@ -18,8 +18,6 @@ def dec(s,p=6):
             else:lo+=dd
         o.append((round(la/1e6,6),round(lo/1e6,6)))
     return o
-co={'walking_speed':4.8,'alley_factor':1.4,'use_living_streets':.6,'step_penalty':10}
-for P in [(24.707252,120.920302),(24.7073,120.92030),(24.70745,120.9203),(24.707808,120.919533),(24.707884,120.920296)]:
 W={'lat':24.707711,'lon':120.919667};B={'lat':24.707293,'lon':120.920850}
 base={'walking_speed':4.8,'alley_factor':1.4,'use_living_streets':.6,'step_penalty':10}
 new=dict(base,walkway_factor=.85,sidewalk_factor=.85,driveway_factor=3)
