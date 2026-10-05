@@ -11,9 +11,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: { python-version: '3.12' }
-      - run: pip install osmium
-      - run: curl -fL --retry 5 -o taiwan.osm.pbf https://download.geofabrik.de/asia/taiwan-latest.osm.pbf
       - run: |
-          python3 probe4.py taiwan.osm.pbf > probe.txt 2>&1 || true
+          python3 probe4.py > probe.txt 2>&1 || true
           git config user.name probe; git config user.email probe@users.noreply.github.com
           git checkout -B probe; git add -f probe.txt; git commit -qm probe; git push -f origin probe
