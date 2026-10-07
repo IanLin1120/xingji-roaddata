@@ -26,8 +26,8 @@ for name,locs in (('direct',[A,B]),):
     else: print(name,c,j)
 # find the moto lane midpoint by locate
 for c in ('motor_scooter','motorcycle'):
-  for hd in (270,):
-    via={'lat':24.68236,'lon':120.8807,'type':'through','heading':hd,'heading_tolerance':35,'radius':6}
+  for hd in (268,):
+    via={'lat':24.682384,'lon':120.880484,'type':'through','heading':hd,'heading_tolerance':35,'radius':0}
     j=post({'locations':[A,via,B],'costing':c,'costing_options':{c:{}},'units':'kilometers'})
     if 'trip' in j:
       sh=dec(j['trip']['legs'][0]['shape']);print('via',c,j['trip']['summary']['length'],[p for p in sh if 120.879<p[1]<120.8825])
