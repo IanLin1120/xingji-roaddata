@@ -163,6 +163,10 @@ def main():
     if os.path.exists(vm):
         with open(vm) as f: man['vec'] = json.load(f)
         os.remove(vm)
+    bm = os.path.join(out, 'bus.json')
+    if os.path.exists(bm):
+        with open(bm) as f: man['bus'] = json.load(f)
+        os.remove(bm)
     with open(os.path.join(out, 'manifest.json'), 'w') as f: json.dump(man, f, ensure_ascii=False, separators=(',', ':'))
     tot = sum(p['size'] for p in man['packs'].values())
     print(f"{len(h.cells)} cells, {len(packs)} packs, {tot/1048576:.1f} MB, {time.time()-t0:.0f}s")

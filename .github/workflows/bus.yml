@@ -1,0 +1,35 @@
+name: 產生公車站牌資料
+on:
+  schedule:
+    - cron: '43 21 * * 0'   # 每週一 05:43(台灣時間),在道路資料之後
+  workflow_dispatch: {}
+permissions:
+  contents: write
+jobs:
+  bus:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - name: 從 TDX 下載全台公車站牌與路線
+        env:
+          TDX_ID: ${{ secrets.TDX_ID }}
+          TDX_KEY: ${{ secrets.TDX_KEY }}
+        run: mkdir -p out && python3 bus.py out
+      - name: 併進 manifest.json
+        run: |
+          curl -fsL --retry 5 -o man.json https://github.com/IanLin1120/xingji-roaddata/releases/download/data/manifest.json
+          python3 - <<'PY'
+          import json, os
+          m = json.load(open('man.json'))
+          if os.path.exists('out/bus.json'):
+              m['bus'] = json.load(open('out/bus.json')); os.remove('out/bus.json')
+          json.dump(m, open('out/manifest.json', 'w'), ensure_ascii=False, separators=(',', ':'))
+          print('bus:', (m.get('bus') or {}).get('stops'), 'stops')
+          PY
+      - name: "發佈到 Releases(標籤 data)"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload data out/* --clobber

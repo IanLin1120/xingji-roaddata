@@ -24,6 +24,8 @@ jobs:
           curl -fL --retry 5 -o planetiler.jar https://github.com/onthegomap/planetiler/releases/latest/download/planetiler.jar
           java -Xmx5g -jar planetiler.jar --osm-path=taiwan.osm.pbf --output=taiwan.mbtiles --download --force --maxzoom=14 --languages=zh-Hant,zh,en
           mkdir -p out && python3 vec.py taiwan.mbtiles out
+      - name: 保留公車站牌資料(由 bus.yml 產生)
+        run: curl -fsL https://github.com/IanLin1120/xingji-roaddata/releases/download/data/manifest.json | python3 -c "import json,sys;b=json.load(sys.stdin).get('bus');b and json.dump(b,open('out/bus.json','w'),ensure_ascii=False)" || true
       - name: 產生道路與自行車道資料
         run: python3 build.py taiwan.osm.pbf out
       - name: "發佈到 Releases(標籤 data)"
