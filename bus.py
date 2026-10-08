@@ -77,8 +77,13 @@ def main():
     stops = {}   # uid -> [uid, name, lat, lon, city, {(route,dir): dest}]
     ok = 0
     for city in CITIES + ['InterCity']:
-        path = ('v2/Bus/StopOfRoute/InterCity' if city == 'InterCity' else f'v2/Bus/StopOfRoute/City/{city}') + '?$select=RouteName,Direction,Stops'
-        try: L = tdx(path, tok)
+        base = ('v2/Bus/StopOfRoute/InterCity' if city == 'InterCity' else f'v2/Bus/StopOfRoute/City/{city}') + '?$select=RouteName,Direction,Stops&$top=1000&$skip='
+        try:
+            # TDX 沒指定筆數時只回 30 筆:每次 1000 條路線分頁抓到完
+            L = []
+            for sk in range(0, 60000, 1000):
+                pg = tdx(base + str(sk), tok); L += pg
+                if len(pg) < 1000: break
         except Exception as e:
             print('bus:', city, '失敗', e)
             if not tok and getattr(e, 'code', 0) in (401, 403, 429): return fallback(out, f'{city}: {e}')
@@ -107,11 +112,11 @@ def main():
     packs = {}
     for k in cells:
         a, b = map(int, k.split('_')); packs.setdefault(f'{math.floor(a * G / P + 1e-9)}_{math.floor(b * G / P + 1e-9)}', []).append(k)
-    man = {'t': stamp, 'g': G, 'p': P, 'stops': len(stops), 'packs': {}}
+    man = {'v': 2, 't': stamp, 'g': G, 'p': P, 'stops': len(stops), 'packs': {}}
     for pk, ks in sorted(packs.items()):
         fn = f'bus_{pk}.txt.gz'
         with gzip.open(os.path.join(out, fn), 'wt', encoding='utf-8', compresslevel=9) as f:
-            for k in sorted(ks): f.write(k + '\t' + json.dumps({'t': stamp, 's': cells[k]}, ensure_ascii=False, separators=(',', ':')) + '\n')
+            for k in sorted(ks): f.write(k + '\t' + json.dumps({'v': 2, 't': stamp, 's': cells[k]}, ensure_ascii=False, separators=(',', ':')) + '\n')
         a, b = map(int, pk.split('_'))
         man['packs'][pk] = {'f': fn, 'bb': [a * P, b * P, (a + 1) * P, (b + 1) * P], 'cells': len(ks),
                             'stops': sum(len(cells[k]) for k in ks), 'size': os.path.getsize(os.path.join(out, fn))}
