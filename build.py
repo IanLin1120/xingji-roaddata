@@ -9,7 +9,7 @@ import osmium
 
 G = 0.01          # App 的格子大小
 P = 0.5           # 打包大小
-KEEP = ['highway','name','lanes','oneway','bridge','tunnel','layer','covered','motorcycle','motor_vehicle','motorcar','bicycle',
+KEEP = ['highway','name','ref','motorroad','embankment','lanes','oneway','bridge','tunnel','layer','covered','motorcycle','motor_vehicle','motorcar','bicycle',
         'railway','junction','maxspeed','turn:lanes','turn:lanes:forward','turn:lanes:backward']
 MAIN = re.compile(r'^(motorway|motorway_link|trunk|trunk_link|primary|primary_link|secondary|secondary_link|tertiary|tertiary_link|unclassified|residential|living_street)$')
 SVC = re.compile(r'^(service|track)$')
