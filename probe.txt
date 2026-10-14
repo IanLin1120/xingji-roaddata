@@ -1,0 +1,46 @@
+ERR https://overpass.private.coffee/api/interpreter HTTP Error 504: Gateway Timeout
+REL 4575952 {"from": "新竹", "name": "5801 新竹→苗栗(經頭份、明德)", "network": "公路客運", "operator": "苗栗客運", "public_transport:version": "2", "ref": "5801", "route": "bus", "to": "苗栗", "type": "route", "via": "頭份;明德"}
+REL 4576024 {"from": "新竹", "name": "5803A 新竹→頭份(經竹南)", "network": "公路客運", "operator": "苗栗客運", "public_transport:version": "2", "ref": "5803A", "route": "bus", "to": "頭份", "type": "route", "via": "竹南"}
+REL 4576147 {"from": "新竹", "name": "5803 新竹→苗栗(經竹南、頭份、造橋、高鐵苗栗站)", "network": "公路客運", "operator": "苗栗客運", "public_transport:version": "1", "ref": "5803", "route": "bus", "to": "苗栗", "type": "route", "via": "竹南;頭份;造橋;高鐵苗栗站"}
+REL 4576497 {"from": "新竹", "name": "5807 新竹→後龍(經頭份)", "network": "公路客運", "operator": "苗栗客運", "public_transport:version": "1", "ref": "5807", "route": "bus", "to": "後龍", "type": "route", "via": "頭份"}
+REL 4627138 {"from": "新安站", "name": "園區巡迴巴士 紫線 新安站→中強光電", "network": "園區巡迴巴士", "operator": "新竹科學園區管理局", "public_transport:version": "2", "ref": "紫", "route": "bus", "to": "中強光電", "type": "route"}
+REL 5886403 {"from": "竹南科學園區", "name": "101 竹南科學園區→雪霸國家公園管理處", "network": "苗栗縣市區公車", "operator": "金牌客運", "public_transport:version": "2", "ref": "101", "route": "bus", "to": "雪霸國家公園管理處", "type": "route"}
+REL 9561854 {"from": "苗栗", "name": "5801 苗栗→新竹(經頭份、明德)", "network": "公路客運", "operator": "苗栗客運", "public_transport:version": "2", "ref": "5801", "route": "bus", "to": "新竹", "type": "route", "via": "頭份;明德"}
+REL 9561855 {"from": "新竹", "name": "5801A 新竹→苗栗(經頭份、明德)（繞駛苗栗農工）", "network": "公路客運", "operator": "苗栗客運", "public_transport:version": "2", "ref": "5801A", "route": "bus", "to": "苗栗", "type": "route", "via": "頭份;明德;苗栗農工"}
+REL 9561856 {"from": "苗栗", "name": "5801A 苗栗→新竹(經頭份、明德)（繞駛苗栗農工）", "network": "公路客運", "operator": "苗栗客運", "public_transport:version": "2", "ref": "5801A", "route": "bus", "to": "新竹", "type": "route", "via": "頭份;明德;苗栗農工"}
+REL 9561942 {"from": "後龍", "name": "5807 後龍→新竹(經頭份)", "network": "公路客運", "operator": "苗栗客運", "public_transport:version": "2", "ref": "5807", "route": "bus", "to": "新竹", "type": "route"}
+REL 9561943 {"from": "新竹", "name": "5807A 新竹→後龍(經頭份、高鐵苗栗站)", "network": "公路客運", "operator": "苗栗客運", "public_transport:version": "2", "ref": "5807A", "route": "bus", "to": "後龍", "type": "route", "via": "頭份;高鐵苗栗站"}
+REL 9561944 {"from": "後龍", "name": "5807A 後龍→新竹(經頭份、高鐵苗栗站)", "network": "公路客運", "operator": "苗栗客運", "ref": "5807A", "route": "bus", "to": "新竹", "type": "route", "via": "頭份;高鐵苗栗站"}
+REL 9630158 {"from": "雪霸國家公園管理處", "name": "101 雪霸國家公園管理處→竹南科學園區", "network": "苗栗縣市區公車", "operator": "金牌客運", "public_transport:version": "2", "ref": "101", "route": "bus", "to": "竹南科學園區", "type": "route"}
+REL 9630159 {"from": "竹南科學園區", "name": "101A 竹南科學園區→高鐵苗栗站", "network": "苗栗縣市區公車", "operator": "金牌客運", "public_transport:version": "2", "ref": "101A", "route": "bus", "to": "高鐵苗栗站", "type": "route"}
+REL 9630160 {"from": "高鐵苗栗站", "name": "101A 高鐵苗栗站→竹南科學園區", "network": "苗栗縣市區公車", "operator": "金牌客運", "public_transport:version": "2", "ref": "101A", "route": "bus", "to": "竹南科學園區", "type": "route"}
+REL 9631937 {"from": "竹南科學園區", "name": "101C 竹南科學園區→高鐵苗栗站（繞駛育達校區）", "network": "苗栗縣市區公車", "operator": "金牌客運", "ref": "101C", "route": "bus", "to": "高鐵苗栗站", "type": "route"}
+REL 9631938 {"from": "高鐵苗栗站", "name": "101C 高鐵苗栗站→竹南科學園區（繞駛育達校區）", "network": "高鐵快捷公車", "operator": "金牌客運", "public_transport:version": "2", "ref": "101C", "route": "bus", "to": "竹南科學園區", "type": "route"}
+REL 9632160 {"from": "中強光電", "name": "園區巡迴巴士 紫線 中強光電→新安站", "network": "園區巡迴巴士", "operator": "新竹科學園區管理局", "ref": "紫", "route": "bus", "to": "新安站", "type": "route"}
+STOP 6505488470 24.7143881 120.9211064 {"bus": "yes", "highway": "bus_stop", "name": "科學路口", "network": "園區巡迴巴士", "operator": "新竹科學園區管理局", "public_transport": "platform"}
+STOP 6505488471 24.7141456 120.9213251 {"bus": "yes", "highway": "bus_stop", "name": "科學路口", "network": "園區巡迴巴士", "operator": "新竹科學園區管理局", "public_transport": "platform"}
+STOP 6505488472 24.7135841 120.9158254 {"bus": "yes", "highway": "bus_stop", "name": "群創光電", "network": "園區巡迴巴士", "operator": "新竹科學園區管理局", "public_transport": "platform"}
+STOP 6505488473 24.7140062 120.9158322 {"bus": "yes", "highway": "bus_stop", "name": "群創光電", "network": "園區巡迴巴士", "operator": "新竹科學園區管理局", "public_transport": "platform"}
+STOP 6505488477 24.7122775 120.914444 {"bus": "yes", "highway": "bus_stop", "name": "旭明光電", "network": "園區巡迴巴士", "operator": "新竹科學園區管理局", "public_transport": "platform"}
+STOP 6505488478 24.7122888 120.9147246 {"bus": "yes", "highway": "bus_stop", "name": "旭明光電", "network": "園區巡迴巴士", "operator": "新竹科學園區管理局", "public_transport": "platform"}
+STOP 6505488479 24.7115413 120.9168778 {"bus": "yes", "highway": "bus_stop", "name": "中強光電", "network": "園區巡迴巴士", "operator": "新竹科學園區管理局", "public_transport": "platform"}
+STOP 6505488480 24.7114012 120.9167665 {"bus": "yes", "highway": "bus_stop", "name": "中強光電", "network": "園區巡迴巴士", "operator": "新竹科學園區管理局", "public_transport": "platform"}
+STOP 6505488481 24.7094838 120.9180937 {"bus": "yes", "highway": "bus_stop", "name": "智晶光電", "network": "園區巡迴巴士", "operator": "新竹科學園區管理局", "public_transport": "platform"}
+STOP 6505488482 24.7092157 120.9163818 {"bus": "yes", "highway": "bus_stop", "name": "達輝光電", "network": "園區巡迴巴士", "operator": "新竹科學園區管理局", "public_transport": "platform"}
+STOP 6505488483 24.7092101 120.9136166 {"bus": "yes", "highway": "bus_stop", "name": "中美矽晶", "network": "園區巡迴巴士", "operator": "新竹科學園區管理局", "public_transport": "platform"}
+STOP 6505488484 24.7089446 120.9136227 {"bus": "yes", "highway": "bus_stop", "name": "中美矽晶", "network": "園區巡迴巴士", "operator": "新竹科學園區管理局", "public_transport": "platform"}
+STOP 6505488785 24.7074838 120.9100536 {"bus": "yes", "highway": "bus_stop", "name": "滯洪池", "network": "園區巡迴巴士", "operator": "新竹科學園區管理局", "public_transport": "platform"}
+STOP 6505488786 24.7072141 120.9105925 {"bus": "yes", "highway": "bus_stop", "name": "滯洪池", "network": "園區巡迴巴士", "operator": "新竹科學園區管理局", "public_transport": "platform"}
+STOP 6505488787 24.7065827 120.9183953 {"bus": "yes", "highway": "bus_stop", "name": "動科所", "network": "園區巡迴巴士", "operator": "新竹科學園區管理局", "public_transport": "platform"}
+STOP 6505488788 24.7063173 120.918309 {"bus": "yes", "highway": "bus_stop", "name": "動科所", "network": "園區巡迴巴士", "operator": "新竹科學園區管理局", "public_transport": "platform"}
+STOP 6505488789 24.7064355 120.9201967 {"bus": "yes", "highway": "bus_stop", "name": "標準廠房", "network": "園區巡迴巴士", "operator": "新竹科學園區管理局", "public_transport": "platform", "shelter": "no"}
+STOP 6505488790 24.706191 120.9201621 {"bus": "yes", "highway": "bus_stop", "name": "標準廠房", "network": "園區巡迴巴士", "operator": "新竹科學園區管理局", "public_transport": "platform", "shelter": "no"}
+STOP 6835288637 24.7074714 120.9250465 {"bus": "yes", "highway": "bus_stop", "name": "種畜廠", "public_transport": "platform", "shelter": "no"}
+STOP 6835288638 24.7075256 120.9252892 {"bus": "yes", "highway": "bus_stop", "name": "種畜廠", "public_transport": "platform", "shelter": "no"}
+STOP 6835330163 24.7158551 120.9195051 {"bus": "yes", "highway": "bus_stop", "name": "天仁茶廠", "public_transport": "platform", "shelter": "no"}
+STOP 6835330167 24.7105665 120.923802 {"bus": "yes", "highway": "bus_stop", "name": "頂大埔", "public_transport": "platform", "shelter": "no"}
+STOP 6835330168 24.7104443 120.9235392 {"bus": "yes", "highway": "bus_stop", "name": "頂大埔", "public_transport": "platform"}
+STOP 6858586508 24.7159294 120.9057815 {"bus": "yes", "highway": "bus_stop", "name": "大埔工業區", "public_transport": "platform"}
+STOP 7775279021 24.7072607 120.9228161 {"bus": "yes", "highway": "bus_stop", "name": "竹南科學園區", "name:en": "Jhunan Science Park", "name:nan": "Tek-lâm Kho-ha̍k Hn̂g-khu", "name:nan-Hant": "竹南科學園區", "name:nan-Latn-pehoeji": "Tek-lâm Kho-ha̍k
+STOP 8241956711 24.7071592 120.9153791 {"bus": "yes", "highway": "bus_stop", "name": "國家衛生研究院", "name:en": "National Health Research", "name:nan": "Kok-ka Ōe-seng Gián-kiù-īⁿ", "name:nan-Hant": "國家衛生研究院", "name:nan-Latn-pehoeji": "Kok-ka Ō
+STOP 8241956712 24.7069855 120.9153164 {"bus": "yes", "highway": "bus_stop", "name": "國家衛生研究院", "name:en": "National Health Research", "name:nan": "Kok-ka Ōe-seng Gián-kiú-īⁿ", "name:nan-Hant": "國家衛生研究院", "name:nan-Latn-pehoeji": "Kok-ka Ō
