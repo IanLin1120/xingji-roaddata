@@ -1,5 +1,5 @@
 import json, urllib.request, urllib.parse
-q='[out:json][timeout:60];(rel[type=route][route~"bus|minibus"](24.68,120.85,24.72,120.90););out tags;(node[highway=bus_stop](24.68,120.85,24.72,120.90););out;'
+q='[out:json][timeout:60];node[highway=bus_stop](24.700,120.905,24.716,120.930)->.s;.s out;rel(bn.s)[type=route];out tags;'
 for url in ['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter']:
     try:
         b=urllib.request.urlopen(urllib.request.Request(url,data=urllib.parse.urlencode({'data':q}).encode(),headers={'User-Agent':'xingji-probe'}),timeout=90).read()
