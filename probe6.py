@@ -1,6 +1,6 @@
 import json, urllib.request, urllib.parse
 q='[out:json][timeout:60];node[highway=bus_stop](24.700,120.905,24.716,120.930)->.s;.s out;rel(bn.s)[type=route];out tags;'
-for url in ['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter']:
+for url in ['https://overpass.private.coffee/api/interpreter','https://overpass-api.de/api/interpreter','https://maps.mail.ru/osm/tools/overpass/api/interpreter']:
     try:
         b=urllib.request.urlopen(urllib.request.Request(url,data=urllib.parse.urlencode({'data':q}).encode(),headers={'User-Agent':'xingji-probe'}),timeout=90).read()
         j=json.loads(b);break
