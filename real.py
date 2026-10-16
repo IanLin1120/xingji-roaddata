@@ -347,6 +347,13 @@ def main():
         for k, (r, p) in enumerate(zip(refs, g)):
             coord[r] = p
             if k: d = dist(g[k - 1], p); a, b = refs[k - 1], r; adj.setdefault(a, []).append((b, d * gr)); adj.setdefault(b, []).append((a, d * gr))
+    # 路口(3 條以上的路交會)固定在地面:引道從路口開始爬升/下降,旁邊的側車道、支線不會跟著被抬高或挖低
+    deg = {}
+    for w in W:
+        if w[1] not in ('h', 'r') or w[4].get('highway') in ('footway', 'path', 'steps', 'cycleway', 'corridor', 'pedestrian'): continue
+        rs = w[2]
+        for k, r in enumerate(rs):
+            if r in adj: deg[r] = deg.get(r, 0) + (1 if k in (0, len(rs) - 1) else 2)
     def tent(REQ, up):
         best = {}; pq = []
         for r, v in REQ.items():
@@ -356,6 +363,7 @@ def main():
             key, r = heapq.heappop(pq)
             if key > best.get(r, 1e18): continue
             for (m, c) in adj.get(r, ()):
+                if deg.get(m, 0) >= 3 and m not in REQ: continue
                 nk = key + c
                 if nk < best.get(m, 1e18):
                     # 已經降(升)回地面以下就不用再往外推
