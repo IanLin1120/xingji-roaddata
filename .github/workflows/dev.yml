@@ -1,0 +1,40 @@
+name: dev 取樣資料
+on:
+  push:
+    branches: [dev]
+permissions:
+  contents: write
+jobs:
+  x:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq osmium-tool
+      - run: curl -fL --retry 5 -o taiwan.osm.pbf https://download.geofabrik.de/asia/taiwan-latest.osm.pbf && ls -la taiwan.osm.pbf
+      - run: |
+          mkdir -p dev
+          osmium extract -b 120.82,24.60,121.06,24.83 taiwan.osm.pbf -o dev/sample.osm.pbf --overwrite
+          osmium fileinfo -e dev/sample.osm.pbf | head -40
+          osmium tags-count taiwan.osm.pbf -F "w/building" building | sort -rn | head -5 || true
+          osmium tags-filter taiwan.osm.pbf w/building -o b.pbf --overwrite && osmium fileinfo -e b.pbf | grep -i "ways\|Number" | head
+          osmium tags-filter taiwan.osm.pbf w/highway -o h.pbf --overwrite && osmium fileinfo -e h.pbf | grep -i "Number" | head
+      - run: |
+          python3 - <<'PY'
+          import math,urllib.request,os
+          os.makedirs('dev/terr',exist_ok=True)
+          def t(lat,lon,z):
+              n=2**z;x=int((lon+180)/360*n);y=int((1-math.asinh(math.tan(math.radians(lat)))/math.pi)/2*n);return x,y
+          z=13;x0,y1=t(24.60,120.82,z);x1,y0=t(24.83,121.06,z);c=0
+          for x in range(x0,x1+1):
+              for y in range(y0,y1+1):
+                  u=f'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'
+                  urllib.request.urlretrieve(u,f'dev/terr/{z}_{x}_{y}.png');c+=1
+          print('tiles',c)
+          PY
+          tar czf dev/terr.tgz -C dev terr && ls -la dev
+      - env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view dev >/dev/null 2>&1 || gh release create dev --title dev --notes "開發用取樣資料" --prerelease
+          gh release upload dev dev/sample.osm.pbf dev/terr.tgz --clobber
