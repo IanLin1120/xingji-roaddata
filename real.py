@@ -122,12 +122,21 @@ class H(osmium.SimpleHandler):
             cr = t.get('crossing', ''); m = t.get('crossing:markings', '')
             if cr in ('zebra', 'marked', 'traffic_signals', 'uncontrolled') or (m and m != 'no'): self.nodes.append((n.location.lat, n.location.lon, 'z'))
         elif t.get('railway') == 'level_crossing': self.nodes.append((n.location.lat, n.location.lon, 'x'))
+        elif t.get('natural') == 'tree': self.nodes.append((n.location.lat, n.location.lon, 't'))       # v3 行道樹
+        elif hw == 'street_lamp': self.nodes.append((n.location.lat, n.location.lon, 'l'))               # v3 路燈
     def way(self, w):
         t = w.tags; hw = t.get('highway'); rw = t.get('railway')
         kind = None
         if hw and ROAD.match(hw) and t.get('area') != 'yes' and t.get('indoor') != 'yes': kind = 'h'
         elif rw and RAIL.match(rw): kind = 'r'
         elif rw == 'platform': kind = 'p'
+        if t.get('natural') == 'tree_row':     # v3 一排樹:每 8 公尺一棵
+            try:
+                g = [(nd.location.lat, nd.location.lon) for nd in w.nodes]
+                for i in range(1, len(g)):
+                    L = dist(g[i - 1], g[i]); n = max(1, int(L // 8))
+                    for k in range(n): f = k / n; self.nodes.append((g[i - 1][0] + (g[i][0] - g[i - 1][0]) * f, g[i - 1][1] + (g[i][1] - g[i - 1][1]) * f, 't'))
+            except osmium.InvalidLocationError: pass
         ww = t.get('waterway')
         if ww and WATERW.match(ww):
             try: self.wl.append([(nd.location.lat, nd.location.lon) for nd in w.nodes])
@@ -462,7 +471,7 @@ def main():
     stamp = int(time.time() * 1000)
     packs = {}
     for k in ks: packs.setdefault((math.floor(k[0] * G / P + 1e-9), math.floor(k[1] * G / P + 1e-9)), []).append(k)
-    man = {'v': 2, 't': stamp, 'g': G, 'p': P, 'en': EN, 'packs': {}}
+    man = {'v': 3, 't': stamp, 'g': G, 'p': P, 'en': EN, 'packs': {}}
     for pk, kk in sorted(packs.items()):
         fn = f'r_{pk[0]}_{pk[1]}.txt.gz'; nw = nb = 0
         with gzip.open(os.path.join(out, fn), 'wt', encoding='utf-8', compresslevel=9) as f:
