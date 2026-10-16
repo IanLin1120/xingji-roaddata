@@ -373,6 +373,25 @@ def main():
                     best[m] = nk; heapq.heappush(pq, (nk, m))
         return {r: (-k if up else k) for r, k in best.items()}
     zu = tent(REQ_UP, True); zd = tent(REQ_DN, False)
+    # v2 坡度上限:從固定在地面的路口往外,高度最多每公尺升降一個坡度(高架在路口前就開始下降,不會在最後一小段直上直下)
+    FX = [r for r in adj if deg.get(r, 0) >= 3 and r not in REQ_UP and r not in REQ_DN and r in coord]
+    def cap(up):
+        best = {}; pq = []
+        for r in FX:
+            v = E.at(*coord[r]); key = v if up else -v; best[r] = key; pq.append((key, r))
+        heapq.heapify(pq)
+        while pq:
+            key, r = heapq.heappop(pq)
+            if key > best.get(r, 1e18): continue
+            for (m, c) in adj.get(r, ()):
+                nk = key + c
+                if nk < best.get(m, 1e18): best[m] = nk; heapq.heappush(pq, (nk, m))
+        return {r: (k if up else -k) for r, k in best.items()}
+    cu = cap(True); cd = cap(False)
+    for r in list(zu):
+        if r in cu and zu[r] > cu[r]: zu[r] = cu[r]
+    for r in list(zd):
+        if r in cd and zd[r] < cd[r]: zd[r] = cd[r]
     def zof(r, p):
         ge = E.at(*p); a = zu.get(r); b = zd.get(r)
         ua = a - ge if a is not None and a > ge else 0; db = ge - b if b is not None and b < ge else 0
@@ -443,7 +462,7 @@ def main():
     stamp = int(time.time() * 1000)
     packs = {}
     for k in ks: packs.setdefault((math.floor(k[0] * G / P + 1e-9), math.floor(k[1] * G / P + 1e-9)), []).append(k)
-    man = {'v': 1, 't': stamp, 'g': G, 'p': P, 'en': EN, 'packs': {}}
+    man = {'v': 2, 't': stamp, 'g': G, 'p': P, 'en': EN, 'packs': {}}
     for pk, kk in sorted(packs.items()):
         fn = f'r_{pk[0]}_{pk[1]}.txt.gz'; nw = nb = 0
         with gzip.open(os.path.join(out, fn), 'wt', encoding='utf-8', compresslevel=9) as f:
