@@ -1,0 +1,11 @@
+     36 highway=service
+     20 highway=track
+     17 highway=primary
+     16 highway=path
+      9 highway=unclassified
+      9 highway=steps
+      5 service=alley
+      3 highway=footway
+      2 highway=residential
+      1 highway=trailhead
+      1 highway=crossing
