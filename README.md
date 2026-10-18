@@ -9,10 +9,9 @@
 | `bike.txt.gz` | 全台自行車道 |
 | `ped.json` | 地圖上標成行人路、其實汽機車可以走的街道白名單(導航用) |
 | `bus_<lat>_<lon>.txt.gz` | 全台公車站牌、經過每個站牌的路線與方向(交通部 TDX,每 0.5° 一包) |
-| `r_<lat>_<lon>.txt.gz`(Releases 的 `real` 標籤) | 實境 3D 圖資:車道數、標線用的道路屬性、橋/高架/地下道/隧道的高度、建築、水域綠地、地形高程(每 0.1° 一包,`real.py` 產生) |
 | `v_base.bin.gz`、`v_<lat>_<lon>.bin.gz` | 3D 導航地圖(OpenMapTiles 格式向量圖磚,由 Planetiler 產生) |
 
-- 產生程式:`build.py`(道路、自行車道)、`vec.py`(向量圖磚打包)、`real.py`(實境 3D 圖資,`.github/workflows/real.yml` 每週一次)
+- 產生程式:`build.py`(道路、自行車道)、`vec.py`(向量圖磚打包)
 - 自動執行:`.github/workflows/build.yml`(每週一次,也可在 Actions 頁手動 Run workflow)
 - 公車站牌:`bus.py`、`.github/workflows/bus.yml`(每週一次)。在 Settings → Secrets and variables → Actions 加上 `TDX_ID`、`TDX_KEY`(TDX 會員的 Client Id / Secret)會更穩定;沒加也能用免金鑰額度。
 - 公車資料來源:交通部 TDX 運輸資料流通服務
