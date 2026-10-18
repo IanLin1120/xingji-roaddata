@@ -1,0 +1,19 @@
+name: 探查2
+on:
+  push:
+    branches: [probe2]
+permissions:
+  contents: write
+jobs:
+  x:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq osmium-tool
+      - run: curl -fL --retry 5 -o t.pbf https://download.geofabrik.de/asia/taiwan-latest.osm.pbf
+      - run: |
+          osmium extract -b 120.778,23.493,120.800,23.512 t.pbf -o s.osm.pbf --overwrite
+          osmium tags-filter s.osm.pbf w/highway -o h.osm.pbf --overwrite
+          osmium cat h.osm.pbf -f opl | grep -o "highway=[a-z_]*\|name=[^,]*\|ref=[^,]*\|access=[^,]*\|motor_vehicle=[^,]*" | sort | uniq -c | sort -rn > probe.txt
+          osmium tags-count t.pbf -F w/highway highway | sort -rn | head -25 >> probe.txt
+          git config user.name bot; git config user.email bot@x; git add -f probe.txt; git commit -qm probe; git push -q origin HEAD:probe2
