@@ -140,7 +140,7 @@ def main():
         with gzip.open(os.path.join(out, fn), 'wt', encoding='utf-8', compresslevel=9) as f:
             for k in sorted(ks):
                 c = h.cells[k]; nw += len(c['w']); nn += len(c['n'])
-                o = {'t': stamp, 'p': 1, 'w': c['w'], 'n': c['n']}
+                o = {'t': stamp, 'p': 2, 'w': c['w'], 'n': c['n']}
                 if c.get('sv'): o['sv'] = c['sv']
                 f.write(k + '\t' + json.dumps(o, ensure_ascii=False, separators=(',', ':')) + '\n')
         a, b = map(int, pk.split('_'))
