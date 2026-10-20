@@ -108,7 +108,17 @@ class H(osmium.SimpleHandler):
                 g = [(round(nd.location.lat, 6), round(nd.location.lon, 6)) for nd in w.nodes]
                 if len(g) >= 2: self.ped.append((w.id, pk, t.get('name', ''), [nd.ref for nd in w.nodes], g))
             except osmium.InvalidLocationError: pass
-        if not want_way(t): return
+        if not want_way(t):
+            # v3 可以通行的服務道路(巷弄捷徑、站前聯絡道、側車道):另外放在 sv,不影響紅綠燈、路口圖這些用主要道路的功能
+            if hw == 'service' and t.get('area') != 'yes' and t.get('service', '') in ('', 'alley') and t.get('access', '') not in NOV + ('customers', 'permit', 'delivery') \
+               and t.get('motor_vehicle', '') not in ('no', 'private') and t.get('motorcycle', '') not in ('no',):
+                try: g = [(round(nd.location.lat, 6), round(nd.location.lon, 6)) for nd in w.nodes]
+                except osmium.InvalidLocationError: return
+                if len(g) >= 2:
+                    tg = {k: t[k] for k in ('highway', 'name', 'oneway', 'service', 'access', 'motorcycle', 'tunnel', 'bridge', 'layer') if k in t}
+                    item = [w.id, tg, enc(g)]
+                    for k in {ckey(a, b) for a, b in g}: self.cell(k).setdefault('sv', []).append(item)
+            return
         try: g = [(round(nd.location.lat, 6), round(nd.location.lon, 6)) for nd in w.nodes]
         except osmium.InvalidLocationError: g = [(round(nd.location.lat, 6), round(nd.location.lon, 6)) for nd in w.nodes if nd.location.valid()]
         if len(g) < 2: return
@@ -130,7 +140,9 @@ def main():
         with gzip.open(os.path.join(out, fn), 'wt', encoding='utf-8', compresslevel=9) as f:
             for k in sorted(ks):
                 c = h.cells[k]; nw += len(c['w']); nn += len(c['n'])
-                f.write(k + '\t' + json.dumps({'t': stamp, 'p': 1, 'w': c['w'], 'n': c['n']}, ensure_ascii=False, separators=(',', ':')) + '\n')
+                o = {'t': stamp, 'p': 1, 'w': c['w'], 'n': c['n']}
+                if c.get('sv'): o['sv'] = c['sv']
+                f.write(k + '\t' + json.dumps(o, ensure_ascii=False, separators=(',', ':')) + '\n')
         a, b = map(int, pk.split('_'))
         man['packs'][pk] = {'f': fn, 'bb': [a * P, b * P, (a + 1) * P, (b + 1) * P], 'cells': len(ks), 'ways': nw, 'nodes': nn,
                             'size': os.path.getsize(os.path.join(out, fn))}
