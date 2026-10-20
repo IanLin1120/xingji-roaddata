@@ -1,0 +1,21 @@
+name: 探查3
+on:
+  push:
+    branches: [probe3]
+permissions:
+  contents: write
+jobs:
+  x:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq osmium-tool
+      - run: curl -fL --retry 5 -o t.pbf https://download.geofabrik.de/asia/taiwan-latest.osm.pbf
+      - run: |
+          osmium extract -b 120.8805,24.6835,120.8850,24.6870 t.pbf -o s.osm.pbf --overwrite
+          osmium tags-filter s.osm.pbf w/highway -o h.osm.pbf --overwrite
+          osmium cat h.osm.pbf -f geojsonseq > probe.txt || osmium cat h.osm.pbf -f opl > probe.txt
+          echo "== tags in Taiwan: service subtypes" >> probe.txt
+          osmium tags-filter t.pbf w/highway=service -o sv.pbf --overwrite && osmium tags-count sv.pbf -F w/highway service | sort -rn | head >> probe.txt
+          osmium tags-count t.pbf -F w/highway highway | sort -rn | head -20 >> probe.txt
+          git config user.name bot; git config user.email bot@x; git add -f probe.txt; git commit -qm probe; git push -q origin HEAD:probe3
