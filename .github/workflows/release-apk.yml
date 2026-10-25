@@ -1,0 +1,25 @@
+name: 發佈 App 安裝檔
+# apk/ 資料夾裡每個 xingji-navi_v版本.apk 都建立一個 Release(標籤 app-v版本),舊版本保留,App 裡可以選版本下載
+on:
+  push:
+    branches: [main]
+    paths: ['apk/**']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 每個安裝檔建立 Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for f in apk/xingji-navi_v*.apk; do
+            v=$(basename "$f" .apk); v=${v#xingji-navi_v}; tag="app-v$v"
+            if gh release view "$tag" >/dev/null 2>&1; then echo "已有 $tag,略過"; continue; fi
+            nf="apk/xingji-navi_v$v.txt"; if [ ! -f "$nf" ]; then echo "行跡導航 v$v" > /tmp/notes.txt; nf=/tmp/notes.txt; fi
+            gh release create "$tag" "$f" --title "行跡導航 v$v" --notes-file "$nf" --latest=false
+            echo "已建立 $tag"
+          done

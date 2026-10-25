@@ -17,3 +17,14 @@
 - 公車資料來源:交通部 TDX 運輸資料流通服務
 
 資料 © OpenStreetMap contributors,依 ODbL 授權。
+
+## App 線上更新
+
+| 位置 | 內容 |
+|---|---|
+| `app/version.json` | `app` 網頁版本、`apk`/`apkName` 最新安裝檔版本、`minApk` 這版網頁至少需要的安裝檔版本號、`notes` 更新說明 |
+| `app/index.html` | 最新版 App 網頁(小改版:手機直接下載這個檔案,不用重裝) |
+| `apk/xingji-navi_v<版本>.apk` | 安裝檔;推上來後 `.github/workflows/release-apk.yml` 自動建立 Release `app-v<版本>`(舊版本保留,App 裡可選版本下載) |
+
+- 小改版:更新 `app/index.html`,把 `version.json` 的 `app` 調高
+- 大改版(App 原生功能有變):放新的 APK 到 `apk/`,`apk`、`apkName`、`minApk` 一起調高
