@@ -1762,7 +1762,7 @@ function dragSort(list,o){/* list:容器;o.item:項目選擇器;o.handle:可選�
  const start=(x,y,row)=>{const L=items(),from=L.indexOf(row);if(from<0)return;vib(40);const r=row.getBoundingClientRect();
   const g=row.cloneNode(true);g.classList.add('dsghost');Object.assign(g.style,{left:r.left+'px',top:r.top+'px',width:r.width+'px',height:r.height+'px'});document.body.appendChild(g);
   const ln=document.createElement('div');ln.className='dsline';document.body.appendChild(ln);row.classList.add('dssrc');document.body.classList.add('dsing');
-  Object.assign(DS,{on:true,row,g,ln,from,to:from,dy:y-r.top,sc:scroller(),y,L});place(y)};
+  Object.assign(DS,{on:true,row,g,ln,from,to:from,dy:y-r.top,sc:scroller(),y,y0:y,L});place(y)};
  const place=y=>{const{L,row,ln,g}=DS;g.style.top=(y-DS.dy)+'px';let to=L.length;for(let i=0;i<L.length;i++){const rr=L[i].getBoundingClientRect();if(y<rr.top+rr.height/2){to=i;break}}
   /* 線畫在目標位置的上緣(放開後項目會在線的下面) */
   const ref=L[Math.min(to,L.length-1)].getBoundingClientRect(),lr=list.getBoundingClientRect();const ly=to<L.length?ref.top:ref.bottom;
@@ -1770,7 +1770,7 @@ function dragSort(list,o){/* list:容器;o.item:項目選擇器;o.handle:可選�
   const fin=to>DS.from?to-1:to;ln.classList.toggle('same',fin===DS.from);if(to!==DS.to){DS.to=to;vib(18)}};
  const auto=()=>{if(!DS.on)return;const sc=DS.sc;if(sc){const r=sc.getBoundingClientRect();const v=DS.y<r.top+60?-(r.top+60-DS.y)/4:DS.y>r.bottom-60?(DS.y-(r.bottom-60))/4:0;if(v){sc.scrollTop+=v;place(DS.y)}}DS.raf=requestAnimationFrame(auto)};
  const end=()=>{clearTimeout(tm);if(!DS.on)return;cancelAnimationFrame(DS.raf);const{row,g,ln,from,to}=DS;g.remove();ln.remove();row.classList.remove('dssrc');document.body.classList.remove('dsing');DS.on=false;
-  const fin=to>from?to-1:to;list._sup=Date.now();if(fin!==from){vib(30);o.onDrop(from,fin)}};
+  const fin=to>from?to-1:to;list._sup=Date.now();if(fin!==from){vib(30);o.onDrop(from,fin)}else if(o.onHold&&Math.abs(DS.y-DS.y0)<12)/* 長按後沒有拖動就放開:交給 onHold(例如刪除) */setTimeout(()=>o.onHold(row),0)};
  const down=(e,x,y)=>{const row=e.target.closest(o.item);if(!row||row.parentElement!==list)return;if(o.handle&&!e.target.closest(o.handle))return;if(e.target.closest('input,textarea,select'))return;
   st={x,y};clearTimeout(tm);tm=setTimeout(()=>{if(st){start(st.x,st.y,row);requestAnimationFrame(auto)}},o.delay||400)};
  list.addEventListener('touchstart',e=>{if(e.touches.length!==1)return clearTimeout(tm);down(e,e.touches[0].clientX,e.touches[0].clientY)},{passive:true});
@@ -2155,13 +2155,20 @@ function favListHtml(edit){const{pins,cats}=favGroups(),F=favFold();const row=([
  const grp=(k,title,L)=>`<div class="fvg ${F[k]&&!edit?'fold':''}" data-g="${k}"><div class="shl fvh" data-fold="${k}"><span class="chev">▾</span>${title}<small class="sub">${L.length}</small></div><div class="fvl">${L.map(row).join('')}</div></div>`;
  const all=(pins.length?1:0)+cats.length;
  return(all>1&&!edit?`<div class="fvtop"><button class="btn sm" data-foldall="1">全部收合</button><button class="btn sm" data-foldall="0">全部展開</button></div>`:'')+(pins.length?grp('pin','📌 釘選',pins):'')+cats.map(g=>grp(g.c.k||'_ot',`${g.c.e} ${esc(g.c.n)}`,g.L)).join('')}
-function favListBind(root,onPick,rerender){root.querySelectorAll('.fvg').forEach(g=>{const L=g.querySelector('.fvl');dragSort(L,{item:'.fvr',onDrop:(f,t)=>{const ids=[...L.querySelectorAll(':scope>.fvr')].map(r=>r.dataset.fid);const [m]=ids.splice(f,1);ids.splice(t,0,m);ids.forEach((k,n)=>DB.fav[k].ord=n);save();rerender()}})});root.querySelectorAll('[data-pin]').forEach(b=>b.onclick=e=>{e.stopPropagation();const f=DB.fav[b.dataset.pin];f.pin=!f.pin;if(f.pin)f.ord=-Date.now()/1e3;save();rerender()});
+/* v2.4.1 收藏重複判斷:同一個位置(25 公尺內),或同名而且在 150 公尺內 */
+const favNorm=n=>String(n||'').replace(/[\s()()·・\-]/g,'').toLowerCase();
+function favDup(f,except){if(!f||f.lat==null)return null;const n=favNorm(f.name);for(const[id,g]of Object.entries(DB.fav)){if(id===except||g.lat==null)continue;const d=dist(f.lat,f.lon,g.lat,g.lon);if(d<25||(n&&favNorm(g.name)===n&&d<150))return id}return null}
+/* 已經重複的收藏(以前沒擋):每組留一個(有備註/釘選的優先),其餘列出來 */
+function favDupList(){const ids=Object.keys(DB.fav),gone=new Set(),out=[];ids.forEach(a=>{if(gone.has(a))return;const fa=DB.fav[a];ids.forEach(b=>{if(b===a||gone.has(b))return;const fb=DB.fav[b];if(fa.lat==null||fb.lat==null)return;const d=dist(fa.lat,fa.lon,fb.lat,fb.lon);const n=favNorm(fa.name);if(d<25&&(!n||!favNorm(fb.name)||favNorm(fb.name)===n)||(n&&favNorm(fb.name)===n&&d<150)){const sc=f=>(f.note?2:0)+(f.pin?1:0);const lose=sc(fb)>sc(fa)?a:b;gone.add(lose);out.push(lose)}})});return out}
+async function favDelAsk(id){const f=DB.fav[id];if(!f)return false;if(!await askDel(`取消收藏「${esc(f.name||f.addr||'')}」?`,esc(f.addr||''),'取消收藏'))return false;delete DB.fav[id];save();try{Fav.draw()}catch(e){}toast('已取消收藏',2000);return true}
+function favListBind(root,onPick,rerender){root.querySelectorAll('.fvg').forEach(g=>{const L=g.querySelector('.fvl');dragSort(L,{item:'.fvr',onHold:async row=>{if(await favDelAsk(row.dataset.fid))rerender()},onDrop:(f,t)=>{const ids=[...L.querySelectorAll(':scope>.fvr')].map(r=>r.dataset.fid);const [m]=ids.splice(f,1);ids.splice(t,0,m);ids.forEach((k,n)=>DB.fav[k].ord=n);save();rerender()}})});root.querySelectorAll('[data-pin]').forEach(b=>b.onclick=e=>{e.stopPropagation();const f=DB.fav[b.dataset.pin];f.pin=!f.pin;if(f.pin)f.ord=-Date.now()/1e3;save();rerender()});
  root.querySelectorAll('[data-mv]').forEach(b=>b.onclick=e=>{e.stopPropagation();favMove(b.dataset.mv,+b.dataset.d);rerender()});
  root.querySelectorAll('[data-fold]').forEach(h=>h.onclick=()=>{const g=h.parentNode,k=h.dataset.fold,F=favFold();g.classList.toggle('fold');F[k]=g.classList.contains('fold');kvSet('favFold',F)});
  root.querySelectorAll('[data-foldall]').forEach(b=>b.onclick=()=>{const on=b.dataset.foldall==='1',F=favFold();root.querySelectorAll('.fvg').forEach(g=>{g.classList.toggle('fold',on);F[g.dataset.g]=on});kvSet('favFold',F)});
  root.querySelectorAll('[data-fid]').forEach(b=>b.onclick=()=>onPick(b.dataset.fid))}
 function pickFav(i,edit){const rc=DB.recent,n=Object.keys(DB.fav).length;
- openSheet(`<div class="shh"><h2>⭐ 選擇地點</h2><span>${n?`<button class="btn sm ${edit?'on':''}" id="pfEd">${edit?'完成':'↕ 排序'}</button> `:''}<button class="btn" onclick="closeSheet()">✕</button></span></div>
+ const dups=favDupList();openSheet(`<div class="shh"><h2>⭐ 選擇地點</h2><span>${n?`<button class="btn sm ${edit?'on':''}" id="pfEd">${edit?'完成':'↕ 排序'}</button> `:''}<button class="btn" onclick="closeSheet()">✕</button></span></div>
+ ${n?`<p class="sub" style="margin:2px 4px 6px">長按地點可以取消收藏;長按後拖動可以排序</p>`:''}${dups.length?`<div class="acts"><button class="btn" id="pfDup">🧹 有 ${dups.length} 個重複的收藏,點這裡移除</button></div>`:''}
  ${n?favListHtml(edit):''}
  ${rc.length?'<div class="shl" style="display:flex;align-items:center">🕘 最近<span class="grow"></span><button class="btn sm" id="rcClr">🗑 清除全部</button></div>'+rc.map((f,k)=>`<div class="vr" data-pr="${k}" style="display:flex;align-items:center"><span class="grow">🕘 ${esc(f.name||f.addr)}</span><button class="ib" data-prx="${k}" title="從最近移除">✕</button></div>`).join(''):''}
  ${!n&&!rc.length?'<div class="empty">還沒有收藏或最近地點</div>':''}`);
@@ -2170,7 +2177,8 @@ function pickFav(i,edit){const rc=DB.recent,n=Object.keys(DB.fav).length;
  $$('#shB [data-pr]').forEach(b=>b.onclick=e=>{if(e.target.closest('[data-prx]'))return;go(rc[+b.dataset.pr])});
  /* 最近地點:單筆移除、全部清除(都先確認) */
  $$('#shB [data-prx]').forEach(b=>b.onclick=async e=>{e.stopPropagation();const x=rc[+b.dataset.prx];if(!x||!await askDel('從「最近」移除?',esc(x.name||x.addr||''),'移除'))return;DB.recent=DB.recent.filter(r=>r!==x);save();const st=$('#sheet').scrollTop;pickFav(i,edit);$('#sheet').scrollTop=st});
- if($('#rcClr'))$('#rcClr').onclick=async()=>{if(!await askDel('清除全部最近地點?',`共 ${DB.recent.length} 筆,收藏地點不受影響。`,'全部清除'))return;DB.recent=[];save();pickFav(i,edit)};if($('#pfEd'))$('#pfEd').onclick=()=>pickFav(i,!edit)}
+ if($('#rcClr'))$('#rcClr').onclick=async()=>{if(!await askDel('清除全部最近地點?',`共 ${DB.recent.length} 筆,收藏地點不受影響。`,'全部清除'))return;DB.recent=[];save();pickFav(i,edit)};if($('#pfEd'))$('#pfEd').onclick=()=>pickFav(i,!edit);
+ if($('#pfDup'))$('#pfDup').onclick=async()=>{if(!await askDel(`移除 ${dups.length} 個重複的收藏?`,dups.map(k=>esc(DB.fav[k].name||DB.fav[k].addr||'')).join('、')+'<br>同一個地點會保留一個(有備註或釘選的優先)。','移除'))return;dups.forEach(k=>delete DB.fav[k]);save();try{Fav.draw()}catch(e){}toast('已移除重複的收藏',2000);pickFav(i,edit)}}
 $('#addVia').onclick=()=>{P.pts.splice(P.pts.length-1,0,{name:''});renderWps();clearRoutes();const ins=$$('#wps input');ins[ins.length-2].focus()};
 $('#swapWp').onclick=()=>{P.pts.reverse();renderWps();clearRoutes()};
 $('#clrWp').onclick=()=>{P.pts=[{cur:1,name:'目前位置'},{name:''}];renderWps();clearRoutes()};
@@ -2565,7 +2573,7 @@ function simSeek(a){const r=N.route;if(!r)return;simAlong=Math.max(0,Math.min(a,
  N.passed=r.legEnds.filter(e=>r.cum[e]<simAlong).length;N.spoken={};N.fix=null;AN.al=null;AN.fixAl=null;AN.cur=null;N.arrived=false;N.jxKey='';if(window.SP)SP.said={};
  const q=pointAt(r.pts,r.cum,simAlong),q2=pointAt(r.pts,r.cum,simAlong+5);onNavLoc({lat:q.p[0],lon:q.p[1],acc:5,spd:0,brg:bearing(q.p[0],q.p[1],q2.p[0],q2.p[1]),t:Date.now()});
  if(!N.simT){N.simT=setInterval(simStep,250)}simUI()}
-function onNavLoc(p){if(!N.on)return;N.pos=p;const r=N.route,rec=N.rec,now=p.t||Date.now();
+function onNavLoc(p){if(!N.on)return;N.pos=p;let r=N.route;const rec=N.rec,now=p.t||Date.now();
  const L0=rec.trk[rec.trk.length-1];if(!L0||now-L0[0]>4000||dist(L0[1],L0[2],p.lat,p.lon)>4)rec.trk.push([now,+p.lat.toFixed(6),+p.lon.toFixed(6),Math.round(p.acc||0),p.spd!=null?+p.spd.toFixed(1):null]);
  if(rec.trk.length%30===0){DB.cur=rec;save()}
  /* 停住不動時 GPS 會在附近飄來飄去:速度很慢且飄移在誤差範圍內 → 視為原地不動,不讓位置/距離跳動 */
@@ -2580,6 +2588,7 @@ function onNavLoc(p){if(!N.on)return;N.pos=p;const r=N.route,rec=N.rec,now=p.t||
  const jump=!!(N.lpJ&&now-N.lpJ.t<8000&&dist(N.lpJ.lat,N.lpJ.lon,p.lat,p.lon)>Math.max(120,(p.spd||15)*((now-N.lpJ.t)/1000)*2.5+60));N.lpJ={lat:p.lat,lon:p.lon,t:now};
  /* v2.2.8 偏離「目前的路線」但其實走在「你一開始選的路線」上(例如常走路線)→ 直接換回你選的路線,不再一直重新規劃 */
  let backOrig=false;if(s.d>thr&&!jump&&N.orig&&N.orig!==r&&N.orig.pts&&(p.acc||0)<40){const so=snap(N.orig.pts,N.orig.cum,p.lat,p.lon);if(so.d<Math.min(25,thr)){const o=N.orig;N.route=o;N.along=so.along;N.lastIdx=Math.max(0,o.cum.findIndex(c=>c>so.along)-1);N.passed=(o.legEnds||[]).filter((e,i)=>i<(o.legEnds.length-1)&&o.cum[e]<so.along-25).length;AN.al=null;AN.fixAl=null;N.spoken={};N.offN=0;N.base={pts:o.pts,cum:o.cum};N.baseAl=so.along;N.rjLast=false;drawNavRoute();banner('✔ 已回到你選的路線',2500);backOrig=true}}
+ /* v2.4.1 換回原本路線後,後面(抵達、中途點)都要用換過的路線判斷:以前還拿重新規劃的短路線總長去比原本路線的進度,人還沒到就判斷「已抵達」 */if(backOrig){r=N.route;s=snap(r.pts,r.cum,p.lat,p.lon)}
  /* v2.3.8 騎進小路捷徑(巷子、站前聯絡道):人在圖資上的道路上、離路線不遠,而且越來越接近前面的路線 → 先不判斷偏離,等接回路線 */
  let hold=false;if((s.d>thr||N.side>=2)&&!jump&&!backOrig&&s.d<170&&(p.spd||0)>1&&(p.acc||99)<=30){try{const rd=OSMC.near(p.lat,p.lon,15);if(rd){let ah=1e9;const a0=N.along+10;for(let d=a0;d<=Math.min(r.cum[r.cum.length-1],a0+450);d+=10){const q=pointAt(r.pts,r.cum,d).p;ah=Math.min(ah,dist(p.lat,p.lon,q[0],q[1]))}
    if(!N.sc)N.sc={t0:now,d:ah};if(now-N.sc.t0<45000&&ah<=N.sc.d+60&&ah<150){hold=true;N.sc.d=Math.min(N.sc.d,ah);if(!N.sc.b){N.sc.b=1;banner('↪ 走小路捷徑中,接回路線後繼續導航',3500)}}}}catch(e){}}if(!hold&&s.d<=thr)N.sc=null;
@@ -2598,7 +2607,7 @@ function onNavLoc(p){if(!N.on)return;N.pos=p;const r=N.route,rec=N.rec,now=p.t||
    if(!wp.through){const nx=r.locPts[N.passed+1];speak(`已抵達中途點 ${wp.name||N.passed}。繼續前往 ${nx&&nx.name||'下一站'}`);banner(`✅ 已抵達 ${wp.name||'中途點'},自動接續下一段`)}else banner(`${wp.poi==='fuel'?'⛽':'🏪'} 經過 ${wp.name}`)}else break}
  /* 抵達 */
  const tot=r.cum[r.cum.length-1],last=r.locPts[r.locPts.length-1];
- if(!N.arrived&&(N.along>=tot-20||dist(p.lat,p.lon,last.lat,last.lon)<25)){N.arrived=true;speak('已抵達目的地'+(last.name?','+last.name:''));banner('🏁 已抵達目的地',4500);setTimeout(()=>{if(N.on&&N.arrived)endNav(true)},5000)}
+ if(!N.arrived&&((N.along>=tot-20&&dist(p.lat,p.lon,last.lat,last.lon)<Math.max(80,(p.acc||10)*2))||dist(p.lat,p.lon,last.lat,last.lon)<25)){N.arrived=true;speak('已抵達目的地'+(last.name?','+last.name:''));banner('🏁 已抵達目的地',4500);setTimeout(()=>{if(N.on&&N.arrived)endNav(true)},5000)}
  /* 偏離 → 重新規劃 */
  if(N.offN>=3&&now-N.lastReroute>8000&&!N.arrived&&!N.sim)reroute(p);
  updHud(p)}
@@ -5551,7 +5560,9 @@ const Fav=(()=>{let map,lay,tmp=null,lyr='st',SR=[];const G={map:null,on:false,r
   $('#fC').onclick=async e=>{const b=e.target.closest('[data-c]');if(!b)return;if(b.dataset.c==='+'){const c=await newCat();if(!c)return;cat=c.k;info(id,draft?{...f,cat,name:$('#fN')?$('#fN').value:f.name}:null);if(!draft){DB.fav[id].cat=cat;save();draw();info(id)}return}
    cat=b.dataset.c;$$('#fC .btn').forEach(x=>x.classList.toggle('on',x===b));if(tmp){tmp.setIcon(pinIcon(catOf(cat).c,catOf(cat).e));syncTmp()}};
   const collect=()=>({...f,name:$('#fN').value.trim(),cat,note:$('#fNote').value.trim(),isNew:undefined});
-  $('#fSave').onclick=()=>{const v=collect();if(!v.name)v.name=v.addr||ll;delete v.isNew;DB.fav[id]=v;save();clrTmp();sheetOnClose=null;closeSheet();draw();toast('已收藏:'+v.name)};
+  $('#fSave').onclick=async()=>{const v=collect();if(!v.name)v.name=v.addr||ll;delete v.isNew;
+   /* v2.4.1 已經收藏過的地點不能再收藏一次 */const du=favDup(v,draft?null:id);if(du){const g=DB.fav[du];const r=await dlg(`<h3>已經收藏過了</h3><p class="sub">「${esc(g.name||g.addr||'')}」${draft?'已經在收藏裡,不會重複加入。':'和這個地點重複(同一個位置或同名)。'}</p><div class="acts" style="justify-content:flex-end"><button class="btn" data-x="0">${draft?'關閉':'取消'}</button>${draft?'':'<button class="btn" data-x="keep">仍然儲存</button>'}<button class="btn pri" data-x="open">查看已收藏的</button></div>`);
+    if(r==='open'){clrTmp();sheetOnClose=null;go(g.lat,g.lon,17);info(du);return}if(r!=='keep')return}DB.fav[id]=v;save();clrTmp();sheetOnClose=null;closeSheet();draw();toast('已收藏:'+v.name)};
   if($('#fDel'))$('#fDel').onclick=async()=>{if(await dlg(`<h3>刪除收藏「${esc(f.name)}」?</h3><div class="acts" style="justify-content:flex-end"><button class="btn" data-x="0">取消</button><button class="btn dang" data-x="1">刪除</button></div>`)){delete DB.fav[id];save();closeSheet();draw()}};
   const pt=()=>({name:$('#fN').value.trim()||f.addr||ll,lat:f.lat,lon:f.lon,addr:f.addr});
   $('#fNav').onclick=()=>{if(!MODES[mode].road)setMode('scooter');P.pts[P.pts.length-1]=pt();closeSheet();show('nav');renderWps();planRoutes()};
@@ -5677,7 +5688,7 @@ $('#bExFp').onclick=()=>{const L0=recsIn($('#exA').value,$('#exB').value);if(!L0
  saveFile(`行跡導航_匯出_${$('#exA').value||'all'}_${$('#exB').value||todayStr()}.json`,JSON.stringify(j));$('#exInfo').textContent=`已匯出 ${L0.length} 段導航、${Object.keys(j.p).length} 個地點、${j.v.length} 筆到達時間。`};
 $('#bExGpx').onclick=()=>{const L0=recsIn($('#exA').value,$('#exB').value).filter(r=>r.trk&&r.trk.length>1);if(!L0.length)return toast('這段期間沒有行跡');saveFile(`行跡導航_${todayStr()}.gpx`,toGpx(L0),'application/gpx+xml')};
 $('#fFp').onchange=async e=>{try{const j=JSON.parse(await e.target.files[0].text());if(!j.p)throw 0;let n=0;Object.values(j.p).forEach(p=>{const nm=p.name||p.gn;if(!nm||p.lat==null)return;if(Object.values(DB.fav).some(f=>dist(f.lat,f.lon,p.lat,p.lon)<30))return;
-  DB.fav['f'+uid()]={lat:p.lat,lon:p.lon,name:nm,addr:p.addr||'',cat:/家|宿舍/.test(nm)?'dm':/公司|工作/.test(nm)?'co':'ot',t:Date.now()};n++});save();Fav.draw();toast(`已匯入 ${n} 個有名稱的地點到收藏(分類「其他」)`,4000)}catch(x){toast('檔案格式不正確')}e.target.value=''};
+  if(favDup({lat:p.lat,lon:p.lon,name:nm}))return;DB.fav['f'+uid()]={lat:p.lat,lon:p.lon,name:nm,addr:p.addr||'',cat:/家|宿舍/.test(nm)?'dm':/公司|工作/.test(nm)?'co':'ot',t:Date.now()};n++});save();Fav.draw();toast(`已匯入 ${n} 個有名稱的地點到收藏(分類「其他」)`,4000)}catch(x){toast('檔案格式不正確')}e.target.value=''};
 $('#gGo').onclick=()=>{const u=$('#gUrl').value.trim();if(u)importGmaps(u)};
 /* 外觀與設定 */
 function bindSet(){const B=(id,k,ev='change',f=x=>x)=>{const el=$('#'+id);el.addEventListener(ev,()=>{S[k]=el.type==='checkbox'?(el.checked?1:0):f(el.value);saveS();applyS();updSet()})};
@@ -6202,7 +6213,7 @@ async function railFixRec(r){if(!r||r.railFix>=2||!r.plan||!['train','hsr','mrt'
    · 小改版:只更新 app/index.html → 手機下載新網頁存起來,下次開啟(或立即)套用,不用重裝
    · 大改版(要新的原生功能):minApk 提高 → 提示下載新的 APK
    · 安裝檔:每個版本一個 Release(app-v版本),可以選最新或舊版本下載到手機 */
-const APP_VER='2.4.0';
+const APP_VER='2.4.1';
 const UPD={repo:'IanLin1120/xingji-roaddata',raw:'https://raw.githubusercontent.com/IanLin1120/xingji-roaddata/main/app/',busy:0};
 function verGt(a,b){const x=String(a||0).split('.').map(Number),y=String(b||0).split('.').map(Number);for(let i=0;i<Math.max(x.length,y.length);i++){const d=(x[i]||0)-(y[i]||0);if(d)return d>0}return false}
 function apkInfo(){try{return IS_APP&&NB.appInfo?JSON.parse(NB.appInfo()):null}catch(e){return null}}
