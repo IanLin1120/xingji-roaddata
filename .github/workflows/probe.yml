@@ -1,0 +1,12 @@
+name: probe
+on: {push: {branches: [probe4]}}
+permissions: {contents: write}
+jobs:
+  p:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          curl -s -m 120 --data-urlencode 'data=[out:json];way(24.6875,120.9010,24.6905,120.9045)[highway];out tags geom;' https://overpass-api.de/api/interpreter > probe.txt || true
+          wc -c probe.txt
+          git config user.name probe; git config user.email probe@x; git add probe.txt; git commit -m probe; git push
