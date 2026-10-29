@@ -132,6 +132,25 @@ def main():
     t0 = time.time(); h = H()
     h.apply_file(src, locations=True, idx='flex_mem')
     stamp = int(time.time() * 1000)
+    # 汽機車其實可以走的「行人路」白名單
+    ped = {}; rej = {}
+    def glen(g): return sum(math.hypot((g[i][0] - g[i-1][0]) * 111000, (g[i][1] - g[i-1][1]) * 101000) for i in range(1, len(g)))
+    for wid, pk, nm, refs, g in h.ped:
+        ends = (refs[0] in h.carN) + (refs[-1] in h.carN)
+        why = None
+        if any(r in h.barN for r in refs): why = 'barrier'
+        elif ends < (1 if pk == 'p' else 2): why = 'ends'
+        elif glen(g) > (900 if pk == 'p' else 500): why = 'long'
+        elif pk == 'f':
+            # 有名字的人行道常和同名的汽車道路並排,這種不算
+            ca, cb = math.floor(g[len(g)//2][0] / 0.01), math.floor(g[len(g)//2][1] / 0.01)
+            cs = h.carName.get(nm, ())
+            if any(abs(a - ca) <= 1 and abs(b - cb) <= 1 for a, b in cs): why = 'samename'
+        if why: rej[why] = rej.get(why, 0) + 1; continue
+        m = g[len(g) // 2]; ped[str(wid)] = [round(m[0], 5), round(m[1], 5), pk]
+        # v4 白名單街道的形狀也放進道路資料包(sv 欄位,標 pedok),App 離線對齊、導航判斷偏離、小路捷徑都認得這條路
+        item = [wid, {'highway': 'pedestrian' if pk == 'p' else 'footway', 'name': nm, 'pedok': pk}, enc(g)] if nm else [wid, {'highway': 'pedestrian' if pk == 'p' else 'footway', 'pedok': pk}, enc(g)]
+        for k in {ckey(a, b) for a, b in g}: h.cell(k).setdefault('sv', []).append(item)
     packs = {}
     for k, c in h.cells.items(): packs.setdefault(pkey(k), []).append(k)
     man = {'v': 1, 't': stamp, 'g': G, 'p': P, 'packs': {}}
@@ -153,22 +172,6 @@ def main():
     with gzip.open(os.path.join(out, 'bike.txt.gz'), 'wt', encoding='utf-8', compresslevel=9) as f:
         for k in sorted(bks): f.write(k + '\t' + json.dumps({'t': stamp, 'p': 1, 'w': h.bike.get(k, [])}, separators=(',', ':')) + '\n')
     man['bike'] = {'f': 'bike.txt.gz', 'cells': len(bks), 'ways': sum(len(v) for v in h.bike.values()), 'size': os.path.getsize(os.path.join(out, 'bike.txt.gz'))}
-    # 汽機車其實可以走的「行人路」白名單
-    ped = {}; rej = {}
-    def glen(g): return sum(math.hypot((g[i][0] - g[i-1][0]) * 111000, (g[i][1] - g[i-1][1]) * 101000) for i in range(1, len(g)))
-    for wid, pk, nm, refs, g in h.ped:
-        ends = (refs[0] in h.carN) + (refs[-1] in h.carN)
-        why = None
-        if any(r in h.barN for r in refs): why = 'barrier'
-        elif ends < (1 if pk == 'p' else 2): why = 'ends'
-        elif glen(g) > (900 if pk == 'p' else 500): why = 'long'
-        elif pk == 'f':
-            # 有名字的人行道常和同名的汽車道路並排,這種不算
-            ca, cb = math.floor(g[len(g)//2][0] / 0.01), math.floor(g[len(g)//2][1] / 0.01)
-            cs = h.carName.get(nm, ())
-            if any(abs(a - ca) <= 1 and abs(b - cb) <= 1 for a, b in cs): why = 'samename'
-        if why: rej[why] = rej.get(why, 0) + 1; continue
-        m = g[len(g) // 2]; ped[str(wid)] = [round(m[0], 5), round(m[1], 5), pk]
     with open(os.path.join(out, 'ped.json'), 'w') as f: json.dump({'t': stamp, 'w': ped}, f, ensure_ascii=False, separators=(',', ':'))
     man['ped'] = {'f': 'ped.json', 'ways': len(ped), 'size': os.path.getsize(os.path.join(out, 'ped.json'))}
     print('ped whitelist', len(ped), 'rejected', rej)
