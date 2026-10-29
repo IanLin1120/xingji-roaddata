@@ -1248,6 +1248,7 @@ body.navigating #fabLoc{display:grid!important}
     <p id="camInfo"></p>
     <div class="acts"><button class="btn" id="bCamUp">↻ 立即更新</button><label class="btn">📥 匯入測速 CSV<input type="file" id="fCam" accept=".csv,text/csv,*/*" hidden></label><button class="btn" id="bCamClr">清除我回報的點</button></div>
     <div class="lab">速度表<select id="sSpdo"><option value="1">顯示</option><option value="0">隱藏</option></select></div>
+    <div class="lab">時速表校正<small class="sub">GPS 量到的是實際車速;車上的時速表依法會顯示得比實際快一點(約 5~10%)。調成和車上時速表一樣,超速提醒仍用實際車速</small><select id="sSpdCal"><option value="0">不校正(GPS 實際車速)</option><option value="5">+5%</option><option value="8">+8%(預設)</option><option value="10">+10%</option><option value="12">+12%</option><option value="15">+15%</option></select></div>
   </div>
   <div class="card glass"><h3>🔑 大眾運輸即時資料(TDX)</h3>
     <p>火車誤點、列車所在位置、公車即時位置與到站時間,都來自交通部 TDX 官方平台。到 <a href="#" data-url="https://tdx.transportdata.tw/register">tdx.transportdata.tw</a> 免費註冊 → 會員中心 → 資料服務 → API 金鑰,把 Client Id 與 Client Secret 貼在下面。沒填也能用,但每天次數很少。</p>
@@ -2161,14 +2162,17 @@ function favDup(f,except){if(!f||f.lat==null)return null;const n=favNorm(f.name)
 /* 已經重複的收藏(以前沒擋):每組留一個(有備註/釘選的優先),其餘列出來 */
 function favDupList(){const ids=Object.keys(DB.fav),gone=new Set(),out=[];ids.forEach(a=>{if(gone.has(a))return;const fa=DB.fav[a];ids.forEach(b=>{if(b===a||gone.has(b))return;const fb=DB.fav[b];if(fa.lat==null||fb.lat==null)return;const d=dist(fa.lat,fa.lon,fb.lat,fb.lon);const n=favNorm(fa.name);if(d<25&&(!n||!favNorm(fb.name)||favNorm(fb.name)===n)||(n&&favNorm(fb.name)===n&&d<150)){const sc=f=>(f.note?2:0)+(f.pin?1:0);const lose=sc(fb)>sc(fa)?a:b;gone.add(lose);out.push(lose)}})});return out}
 async function favDelAsk(id){const f=DB.fav[id];if(!f)return false;if(!await askDel(`取消收藏「${esc(f.name||f.addr||'')}」?`,esc(f.addr||''),'取消收藏'))return false;delete DB.fav[id];save();try{Fav.draw()}catch(e){}toast('已取消收藏',2000);return true}
+/* 「移除重複」按鈕(選擇地點、地圖頁收藏清單共用) */
+function favDupBar(){const d=favDupList();return d.length?`<div class="acts"><button class="btn" data-fdup="1">🧹 有 ${d.length} 個重複的收藏,點這裡移除</button></div>`:''}
 function favListBind(root,onPick,rerender){root.querySelectorAll('.fvg').forEach(g=>{const L=g.querySelector('.fvl');dragSort(L,{item:'.fvr',onHold:async row=>{if(await favDelAsk(row.dataset.fid))rerender()},onDrop:(f,t)=>{const ids=[...L.querySelectorAll(':scope>.fvr')].map(r=>r.dataset.fid);const [m]=ids.splice(f,1);ids.splice(t,0,m);ids.forEach((k,n)=>DB.fav[k].ord=n);save();rerender()}})});root.querySelectorAll('[data-pin]').forEach(b=>b.onclick=e=>{e.stopPropagation();const f=DB.fav[b.dataset.pin];f.pin=!f.pin;if(f.pin)f.ord=-Date.now()/1e3;save();rerender()});
+ root.querySelectorAll('[data-fdup]').forEach(b=>b.onclick=async()=>{const dups=favDupList();if(!dups.length)return;if(!await askDel(`移除 ${dups.length} 個重複的收藏?`,dups.map(k=>esc(DB.fav[k].name||DB.fav[k].addr||'')).join('、')+'<br>同一個地點會保留一個(有備註或釘選的優先)。','移除'))return;dups.forEach(k=>delete DB.fav[k]);save();try{Fav.draw()}catch(e){}toast('已移除重複的收藏',2000);rerender()});
  root.querySelectorAll('[data-mv]').forEach(b=>b.onclick=e=>{e.stopPropagation();favMove(b.dataset.mv,+b.dataset.d);rerender()});
  root.querySelectorAll('[data-fold]').forEach(h=>h.onclick=()=>{const g=h.parentNode,k=h.dataset.fold,F=favFold();g.classList.toggle('fold');F[k]=g.classList.contains('fold');kvSet('favFold',F)});
  root.querySelectorAll('[data-foldall]').forEach(b=>b.onclick=()=>{const on=b.dataset.foldall==='1',F=favFold();root.querySelectorAll('.fvg').forEach(g=>{g.classList.toggle('fold',on);F[g.dataset.g]=on});kvSet('favFold',F)});
  root.querySelectorAll('[data-fid]').forEach(b=>b.onclick=()=>onPick(b.dataset.fid))}
 function pickFav(i,edit){const rc=DB.recent,n=Object.keys(DB.fav).length;
- const dups=favDupList();openSheet(`<div class="shh"><h2>⭐ 選擇地點</h2><span>${n?`<button class="btn sm ${edit?'on':''}" id="pfEd">${edit?'完成':'↕ 排序'}</button> `:''}<button class="btn" onclick="closeSheet()">✕</button></span></div>
- ${n?`<p class="sub" style="margin:2px 4px 6px">長按地點可以取消收藏;長按後拖動可以排序</p>`:''}${dups.length?`<div class="acts"><button class="btn" id="pfDup">🧹 有 ${dups.length} 個重複的收藏,點這裡移除</button></div>`:''}
+ openSheet(`<div class="shh"><h2>⭐ 選擇地點</h2><span>${n?`<button class="btn sm ${edit?'on':''}" id="pfEd">${edit?'完成':'↕ 排序'}</button> `:''}<button class="btn" onclick="closeSheet()">✕</button></span></div>
+ ${n?`<p class="sub" style="margin:2px 4px 6px">長按地點可以取消收藏;長按後拖動可以排序</p>`:''}${favDupBar()}
  ${n?favListHtml(edit):''}
  ${rc.length?'<div class="shl" style="display:flex;align-items:center">🕘 最近<span class="grow"></span><button class="btn sm" id="rcClr">🗑 清除全部</button></div>'+rc.map((f,k)=>`<div class="vr" data-pr="${k}" style="display:flex;align-items:center"><span class="grow">🕘 ${esc(f.name||f.addr)}</span><button class="ib" data-prx="${k}" title="從最近移除">✕</button></div>`).join(''):''}
  ${!n&&!rc.length?'<div class="empty">還沒有收藏或最近地點</div>':''}`);
@@ -2177,8 +2181,7 @@ function pickFav(i,edit){const rc=DB.recent,n=Object.keys(DB.fav).length;
  $$('#shB [data-pr]').forEach(b=>b.onclick=e=>{if(e.target.closest('[data-prx]'))return;go(rc[+b.dataset.pr])});
  /* 最近地點:單筆移除、全部清除(都先確認) */
  $$('#shB [data-prx]').forEach(b=>b.onclick=async e=>{e.stopPropagation();const x=rc[+b.dataset.prx];if(!x||!await askDel('從「最近」移除?',esc(x.name||x.addr||''),'移除'))return;DB.recent=DB.recent.filter(r=>r!==x);save();const st=$('#sheet').scrollTop;pickFav(i,edit);$('#sheet').scrollTop=st});
- if($('#rcClr'))$('#rcClr').onclick=async()=>{if(!await askDel('清除全部最近地點?',`共 ${DB.recent.length} 筆,收藏地點不受影響。`,'全部清除'))return;DB.recent=[];save();pickFav(i,edit)};if($('#pfEd'))$('#pfEd').onclick=()=>pickFav(i,!edit);
- if($('#pfDup'))$('#pfDup').onclick=async()=>{if(!await askDel(`移除 ${dups.length} 個重複的收藏?`,dups.map(k=>esc(DB.fav[k].name||DB.fav[k].addr||'')).join('、')+'<br>同一個地點會保留一個(有備註或釘選的優先)。','移除'))return;dups.forEach(k=>delete DB.fav[k]);save();try{Fav.draw()}catch(e){}toast('已移除重複的收藏',2000);pickFav(i,edit)}}
+ if($('#rcClr'))$('#rcClr').onclick=async()=>{if(!await askDel('清除全部最近地點?',`共 ${DB.recent.length} 筆,收藏地點不受影響。`,'全部清除'))return;DB.recent=[];save();pickFav(i,edit)};if($('#pfEd'))$('#pfEd').onclick=()=>pickFav(i,!edit)}
 $('#addVia').onclick=()=>{P.pts.splice(P.pts.length-1,0,{name:''});renderWps();clearRoutes();const ins=$$('#wps input');ins[ins.length-2].focus()};
 $('#swapWp').onclick=()=>{P.pts.reverse();renderWps();clearRoutes()};
 $('#clrWp').onclick=()=>{P.pts=[{cur:1,name:'目前位置'},{name:''}];renderWps();clearRoutes()};
@@ -2939,7 +2942,7 @@ function animFrame(ts){AN.raf=0;if(!N.on||!AN.to)return;const f=Math.min(1,(perf
 function glReveal(){if(!GLV.ready)return;if(GLV.vis){applyNavView();return}clearTimeout(GLV.rvT);let done=false;const go=()=>{if(done)return;done=true;clearTimeout(GLV.rvT);GLV.vis=true;applyNavView()};
  GLV.map.once('idle',go);GLV.rvT=setTimeout(go,2500)}
 /* 畫面尺寸不對或畫布沒更新時自動修正(以前要按切換視角才會出現) */
-function glFix(){const m=GLV.map;if(!m)return;const el=$('#navGL'),cv=m.getCanvas();if(!el.clientWidth)return;
+function glFix(){const m=GLV.map;if(!m)return;const el=$("#navGL"),cv=m.getCanvas();if(!el||!cv||!el.clientWidth)return;
  if(Math.abs(cv.clientWidth-el.clientWidth)>1||Math.abs(cv.clientHeight-el.clientHeight)>1||!cv.width)m.resize();m.triggerRepaint()}
 /* 規劃路線時先在背景把 3D 地圖、起點附近的圖磚準備好,按下開始就能馬上顯示 */
 async function glWarm(r){if(GLV.failed||!r||!r.pts||!r.pts.length)return;GLV.warm=true;if(!GLV.map)await initGL();if(!GLV.map)return;const go=()=>{if(N.on||BRW.on)return;const p=r.pts[0],q=r.pts[Math.min(r.pts.length-1,8)],td=S.navView==='3d';
@@ -3169,7 +3172,7 @@ const sigBand=t=>{const d=new Date(t),h=d.getHours(),we=d.getDay()===0||d.getDay
 function sigFit(go){const mw=Math.max(0,...go.map(e=>e.w||0)),cs=[];for(let C=40;C<=240;C++){let sx=0,sy=0;go.forEach(e=>{const a=(e.t/1000%C)/C*2*Math.PI;sx+=Math.cos(a);sy+=Math.sin(a)});cs.push({C,R:Math.hypot(sx,sy)/go.length,ph:Math.atan2(sy,sx)})}
  const top=Math.max(...cs.map(x=>x.R));/* 週期的整數倍也會吻合:取吻合度接近最高、又放得下最長紅燈的最短週期 */
  return cs.filter(x=>x.R>=top-.02&&x.C>=mw+20).sort((a,b)=>a.C-b.C)[0]||cs.sort((a,b)=>b.R-a.R)[0]}
-function sigModel(key,t){const rec=DB.sig[key];if(!rec)return null;const band=sigBand(t),all=rec.ev,bev=all.filter(e=>e.b===band);
+function sigModel(key,t){const rec=DB.sig[key];if(!rec)return null;const band=sigBand(t),all=rec.ev.map(e=>e.k==='go'&&!(e.v>=2)?{...e,t:e.t-3000,w:Math.max(0,(e.w||0)-3)}:e)/* v2.4.2 舊版學到的起步時間平均晚約 3 秒,修正後再算 */,bev=all.filter(e=>e.b===band);
  const goAll=all.filter(e=>e.k==='go'),goB=bev.filter(e=>e.k==='go');/* v2.0.9 至少 6 次起步才推算週期:只有 4 次時,隨便幾個時間點都可能湊出一個「吻合」的週期,猜錯機率高 */const go=goB.length>=6?goB:goAll,ev=goB.length>=6?bev:all;if(go.length<6)return{n:go.length};
  const errs=goAll.filter(e=>e.err!=null).slice(-5).map(e=>Math.abs(e.err)).sort((a,b)=>a-b),acc=errs.length?errs[Math.floor(errs.length/2)]:null;
  const waits=go.map(e=>e.w||0).filter(w=>w>2).sort((a,b)=>a-b),wmed=waits.length?waits[Math.floor(waits.length*.6)]:null;
@@ -3189,10 +3192,10 @@ function sigTrack(p,on){const r=N.route;if(r&&on)sigLearn(p);if(!r||!r.sig||!on)
  const nx=r.sig.find(s=>s.along>N.along-12);if(!nx)return sigHud(null);
  /* 學習:在燈前停下 / 起步 / 直接通過 */
  const c=SG.cur&&SG.cur.s===nx?SG.cur:(SG.cur={s:nx,stop:0,go:0});const ahead=nx.along-N.along;
- /* v2.3.7 排隊等紅燈:停在燈前 150 公尺內都算在等這個燈(車多時常停在路口後面一段) */if(ahead<150&&ahead>-5&&spd<1.2&&!c.stop)c.stop=now;
+ /* v2.3.7 排隊等紅燈:停在燈前 150 公尺內都算在等這個燈(車多時常停在路口後面一段) */if(ahead<150&&ahead>-5&&spd<1.2&&!c.stop){c.stop=now;c.stopAh=Math.max(0,ahead)}
  if(ahead<150&&ahead>-5&&spd<1.2&&c.stop&&c.pred==null){const pr=sigPredict(nx.key,c.stop,c.stop);c.pred=pr&&pr.col==='r'&&pr.left!=null?c.stop+pr.left*1000:0}
- if(c.stop&&!c.go&&spd>2.5)c.go=now;
- if(ahead<-8&&!c.done){c.done=1;if(c.stop&&c.go&&c.go-c.stop>3000){const ev={k:'go',t:c.go-1500,w:Math.round((c.go-c.stop)/1000)};if(c.pred)ev.err=Math.round((c.go-1500-c.pred)/1000);sigLog(nx,ev)}else if(!c.stop)sigLog(nx,{k:'pass',t:now})}
+ /* v2.4.2 起步判斷提早:以前要等到時速 9 公里才算起步(加上 GPS 延遲,學到的綠燈時間晚 3~5 秒) */if(c.stop&&!c.go&&spd>1.0)c.go=now;
+ if(ahead<-8&&!c.done){c.done=1;if(c.stop&&c.go&&c.go-c.stop>3000){/* 綠燈亮的時間 ≈ 起步時間 − 反應時間約 1 秒 − 排在後面時前車一台台起步的時間(約每 5 公尺 1 秒) */const lag=1000+Math.min(8000,Math.max(0,(c.stopAh||0)-8)/5*1000),ev={k:'go',t:c.go-lag,w:Math.round((c.go-lag-c.stop)/1000),v:2};if(c.pred)ev.err=Math.round((ev.t-c.pred)/1000);sigLog(nx,ev)}else if(!c.stop)sigLog(nx,{k:'pass',t:now})}
  sigHud(nx,ahead,c,now)}
 /* 圖資沒有標號誌的路口:在路口附近停等超過 10 秒(且前後 35 公尺內沒有已知號誌)就記一次,記到 2 次自動當成紅綠燈 */
 function sigLearn(p){if(N.sim)return;const r=N.route,now=p.t||Date.now(),spd=p.spd||0;const L0=SG.lrn||(SG.lrn={});
@@ -3229,7 +3232,7 @@ const PTV=4;
 async function pastTrip(rec,o,d,md){md=md||mode;const ck='pt_'+rec.id+'_'+md;{const C=kvGet(ck);if(C&&C.v===PTV&&!tripBad(C.trip)&&C.fx===(rec.drvFix||0)&&Date.now()-C.t<21*864e5&&dist(C.o[0],C.o[1],o.lat,o.lon)<120&&dist(C.d[0],C.d[1],d.lat,d.lon)<120)return JSON.parse(JSON.stringify(C.trip))}
  const t0=await pastTrip0(rec,o,d,md);const t=t0&&!tripBad(t0)?t0:null;if(t)try{kvSet(ck,{v:PTV,fx:rec.drvFix||0,t:Date.now(),o:[o.lat,o.lon],d:[d.lat,d.lon],trip:t})}catch(e){}return t}
 async function pastTrip0(rec,o,d,md){const mode=md;let path=null;
- if(!rec.imp&&rec.plan&&rec.trk&&rec.drvFix!==11&&typeof rpNavRepair==='function')await rpNavRepair(rec);
+ if(!rec.imp&&rec.plan&&rec.trk&&rec.drvFix!==12&&typeof rpNavRepair==='function')await rpNavRepair(rec);
  if(!rec.imp&&rec.drv)path=decPoly(rec.drv,5);else if(rec.imp&&rec.plan)path=decPoly(rec.plan,5);if(!path||path.length<2)return null;
  let i0=0,i1=path.length-1,a=1e9,b=1e9;path.forEach((x,i)=>{const p=dist(o.lat,o.lon,x[0],x[1]);if(p<a){a=p;i0=i}const q=dist(d.lat,d.lon,x[0],x[1]);if(q<b){b=q;i1=i}});
  if(a>150||b>200||i1-i0<1)return null;return traceSeg(path.slice(i0,i1+1),mode)}
@@ -4121,7 +4124,15 @@ async function camLoad(r){r.cams=[];r.ways=[];try{await Promise.race([rideMatch(
  r.cams.sort((a,b)=>a.along-b.along);if(!r.lx||!r.lx.length){try{const D=await OSMC.for(r),IX=routeIdx(r);r.lx=[];D.nodes.forEach(n=>{if(n[3]!=='x')return;const sp=IX.snap(n[1],n[2]);if(sp.d<25&&!r.lx.some(x=>Math.abs(x.along-sp.along)<60))r.lx.push({lat:n[1],lon:n[2],along:sp.along,bar:n[4]||''})})}catch(e){}}
  if(r.lx){r.lx.sort((a,b)=>a.along-b.along);lxPrep(r)}
  /* 區間測速:路線上連續兩個區間點配成一段 */
- const secs=r.cams.filter(c=>c.kind==='sec');r.secs=[];for(let i=0;i+1<secs.length;i+=2){if(secs[i+1].along-secs[i].along<20000){secs[i+1].secEnd=1;r.secs.push({a:secs[i],b:secs[i+1],lim:secs[i].lim||secs[i+1].lim})}}
+/* v2.4.2 區間測速配對:起點往前 0.3~20 公里內的下一個區間點當終點(同一位置的重複資料不算);
+    只有起點時,從說明文字的里程(例如「12K~15.5K」)推算終點;都沒有的話用 OSM 的區間測速路段 */
+ const secs=r.cams.filter(c=>c.kind==='sec');r.secs=[];const used=new Set();const T=r.cum[r.cum.length-1];
+ for(let i=0;i<secs.length;i++){if(used.has(i))continue;const a=secs[i],tx=(a.addr||'')+' '+(a.what||'');if(/終點|迄點|出口/.test(tx)&&!/起點/.test(tx))continue;let j=-1;
+  for(let k=i+1;k<secs.length;k++){if(used.has(k))continue;const d=secs[k].along-a.along;if(d<300){used.add(k);continue}if(d>20000)break;j=k;break}
+  if(j>=0){used.add(i);used.add(j);secs[j].secEnd=1;r.secs.push({a,b:secs[j],lim:a.lim||secs[j].lim,key:a.lat+','+a.lon});continue}
+  const m=tx.replace(/[kK][mM]/g,'K').match(/(\d+(?:\.\d+)?)\s*[K公]\D{0,8}?[~～\-－—至到]\s*(\d+(?:\.\d+)?)\s*[K公]/);
+  if(m){const L=Math.abs(+m[2]-+m[1])*1000;if(L>=300&&L<=20000){const al=Math.min(T,a.along+L),q=pointAt(r.pts,r.cum,al).p;r.secs.push({a,b:{lat:q[0],lon:q[1],along:al,kind:'sec',secEnd:1,virt:1},lim:a.lim,key:a.lat+','+a.lon,est:1});used.add(i)}}}
+
  if(N.on&&N.route===r)camDraw()}
 let camLay=null,camGL=[];
 const CAM_ICON={fix:'📸',sec:'⏱',mob:'👮',red:'🚦',tech:'📹',noise:'🔊'};
@@ -4136,6 +4147,8 @@ function wayLimit(p){if(N.route&&N.route.ways)SC.ways=N.route.ways;if(!SC.ways.l
   if(d<Math.max(20,dist(a[0],a[1],b[0],b[1])/2+12)&&(!best||d<best.d)){const fwd=p.brg==null||Math.abs(((bearing(a[0],a[1],b[0],b[1])-p.brg)+540)%360-180)<90;best={d,w,fwd}}}});
  if(!best)return null;const t=best.w.t,v=(best.fwd?t.f:t.b)||t.maxspeed;const n=parseInt(v);return n&&n<=130?n:null}
 /* ---------- 每次定位更新 ---------- */
+function secAvg(S0,now){const el=(now-S0.t0)/1000;return el>3?S0.d/el*3.6:null}
+function secEnd(S0,now){const avg=secAvg(S0,now),lim=S0.s.lim;sayQ('區間測速結束'+(avg?',平均時速'+Math.round(avg)+'公里':''));banner(`✅ 區間測速結束${avg?' · 平均時速 '+Math.round(avg)+(lim?(avg>lim?' ⚠ 超過限速 '+lim:' · 在限速 '+lim+' 以內 👍'):''):''}`,5000)}
 function safetyTick(p){const kmh=p.spd!=null?p.spd*3.6:null,r=N.route,el=$('#spd');if(!r)return;try{lxTick(p)}catch(e){console.error(e)}
  if(Date.now()-SC.lastWay>2000){SC.lastWay=Date.now();SC.limit=wayLimit(p)}
  /* 測速點(區間測速的終點不算;區間內仍會提醒其他測速照相) */
@@ -4144,9 +4157,13 @@ function safetyTick(p){const kmh=p.spd!=null?p.spd*3.6:null,r=N.route,el=$('#spd
  const camNear=cam&&ahead<=(['red','tech','noise'].includes(cam.kind)?150:300);
  let lim=SC.limit,txt='',cls='',over=false;
  /* 區間測速:進入起點開始計算平均速度;顯示剩餘距離、預估多久離開、後段建議時速 */
- if(r.secs){const s=r.secs.find(x=>N.along>=x.a.along-5&&N.along<=x.b.along+5);
-  if(s&&(!SC.sec||SC.sec.s!==s)){SC.sec={s,t0:p.t||Date.now(),a0:N.along};sayQ(`區間測速開始${s.lim?',限速'+s.lim+'公里':''}`);banner(`⏱ 區間測速開始${s.lim?' · 限速 '+s.lim:''}`,3500);if(IS_APP&&NB.vibrate)try{NB.vibrate(200)}catch(e){}}
-  if(!s&&SC.sec){const sp=SC.sec,el=((p.t||Date.now())-sp.t0)/1000,avg=el>3?(N.along-sp.a0)/el*3.6:0;SC.sec=null;sayQ('區間測速結束');banner(`✅ 區間測速結束${avg?' · 平均時速 '+Math.round(avg):''}`,4000)}}
+ /* v2.4.2 區間測速:進入區間後一直顯示到離開為止;平均時速用實際走的距離 ÷ 時間(重新規劃路線也不會歸零) */
+ {const now=p.t||Date.now(),S0=SC.sec;if(S0&&S0.lp){const d=dist(S0.lp[0],S0.lp[1],p.lat,p.lon);if(d<250)S0.d+=d;S0.lp=[p.lat,p.lon]}
+  if(r.secs){const s=r.secs.find(x=>N.along>=x.a.along-10&&N.along<=x.b.along+5),key=s?s.key:null;
+   if(s&&(!S0||S0.key!==key)){if(S0)secEnd(S0,now);SC.sec={key,s,t0:now,d:0,lp:[p.lat,p.lon]};sayQ(`區間測速開始${s.lim?',限速'+s.lim+'公里':''}${s.est?',全長約'+(Math.round((s.b.along-s.a.along)/100)/10)+'公里':''}`);banner(`⏱ 區間測速開始${s.lim?' · 限速 '+s.lim:''}`,3500);if(IS_APP&&NB.vibrate)try{NB.vibrate(200)}catch(e){}}
+   else if(s)S0.s=s;/* 換了路線:區間改用新路線上的位置 */
+   else if(S0&&!r.secs.some(x=>x.key===S0.key)&&N.along>40&&now-S0.t0>5000&&S0.d>=(S0.s.b.along-S0.s.a.along)*.9){secEnd(S0,now);SC.sec=null}
+   else if(S0&&r.secs.some(x=>x.key===S0.key)){secEnd(S0,now);SC.sec=null}}}
  const camVoice=(cam,ahead,lim,over)=>{const k=cam.kind,spd=['fix','sec','mob'].includes(k),name=k==='mob'?'常見臨時測速點':CAM_KIND[k].n;
   const tip=k==='red'?'請注意號誌,勿闖紅燈':k==='noise'?'請勿急加速、催油門':k==='tech'?(cam.what?cam.what.replace(/\s+/g,' '):'請依號誌與標線行駛,禮讓行人'):'';
   const ths=k==='sec'?[800,500,200]:spd?[500,200,50]:[300,100];ths.forEach(th=>{const key=cam.lat+'_'+cam.kind+'_'+th;if(ahead<=th&&!SC.said[key]){SC.said[key]=1;if(ths.some(t2=>t2<th&&ahead<=t2))return;
@@ -4154,12 +4171,12 @@ function safetyTick(p){const kmh=p.spd!=null?p.spd*3.6:null,r=N.route,el=$('#spd
    else if(spd)sayQ(th===50?`${name}${over?',您已超速':''}`:`${th}公尺後${name}${lim?',限速'+lim+'公里':''}${over?',請減速':''}`);
    else sayQ(th===ths[0]?`前方${th}公尺,${name}${k==='tech'&&cam.what?','+cam.what.slice(0,16):''}`:`${name},${tip}`);
    if(th===ths[ths.length-1]){if(!spd)banner(`${CAM_ICON[k]} ${name}${tip?' · '+tip:''}`,2500);if(IS_APP&&NB.vibrate)try{NB.vibrate(k==='red'||over?400:150)}catch(e){}}}});return{name,tip,spd}};
- if(SC.sec){const s=SC.sec.s,now=p.t||Date.now(),el2=(now-SC.sec.t0)/1000,avg=el2>3?(N.along-SC.sec.a0)/el2*3.6:kmh||0,left=Math.max(0,s.b.along-N.along);lim=s.lim||lim;over=lim&&avg>lim;
+ if(SC.sec){const s=SC.sec.s,now=p.t||Date.now(),el2=(now-SC.sec.t0)/1000,avg=secAvg(SC.sec,now)??(kmh||0),left=Math.max(0,s.b.along-N.along);lim=s.lim||lim;over=lim&&avg>lim+.5;
   const v=Math.max(kmh||0,avg||0,5)/3.6,eta=left/v,etaT=eta>=60?`${Math.floor(eta/60)} 分 ${Math.round(eta%60)} 秒`:`${Math.round(eta)} 秒`;
   /* 平均不超速的條件:全段時間 ≥ 全長 ÷ 速限 → 後段最高可以開多快 */
-  let tipMax='';if(lim){const L=s.b.along-SC.sec.a0,need=L/(lim/3.6)-el2;tipMax=need>1?Math.max(0,Math.floor(left/need*3.6)):999}
+  let tipMax='';if(lim){const L=SC.sec.d+left,need=L/(lim/3.6)-el2;tipMax=need>1?Math.max(0,Math.floor(left/need*3.6)):999}
   const curOver=lim&&kmh!=null&&Math.round(kmh)>lim;
-  txt=`<span class="ci">⏱</span><span><b>區間測速中</b> 剩 ${fmtM(left)} · 約 <b>${etaT}</b> 後離開${lim?` · 限速 <b>${lim}</b>`:''}<small>平均時速 <b class="${over?'ovr':''}">${Math.round(avg)}</b> km/h${over?' · 平均已超速,請放慢':tipMax!==''&&tipMax<lim?` · 後段請保持 ${tipMax} 以下`:curOver?' · 目前車速超過速限':''}</small></span>`;cls=over||curOver?'warn':'';
+  txt=`<span class="ci">⏱</span><span><b>區間測速中</b> ${s.est?'約':''}剩 ${fmtM(left)} · 約 <b>${etaT}</b> 後離開${lim?` · 限速 <b>${lim}</b>`:''}<small>平均時速 <b class="${over?'ovr':''}">${Math.round(avg)}</b> km/h${lim?(over?'':' ✔ 合格'):''}${over?' · 平均已超速,請放慢':tipMax!==''&&tipMax<lim?` · 後段請保持 ${tipMax} 以下`:curOver?' · 目前車速超過速限':''}</small></span>`;cls=over||curOver?'warn':'';
   if(over&&!SC.said['secover'+Math.floor(left/1000)]){SC.said['secover'+Math.floor(left/1000)]=1;sayQ('區間平均速度超速,請減速')}
   else if(curOver&&!over&&!SC.said['seccur'+Math.floor(left/500)]){SC.said['seccur'+Math.floor(left/500)]=1;sayQ('區間測速中,目前車速超過速限')}
   /* 區間內的其他測速照相也照樣提醒 */
@@ -4169,11 +4186,12 @@ function safetyTick(p){const kmh=p.spd!=null?p.spd*3.6:null,r=N.route,el=$('#spd
    txt=k==='sec'?`<span class="ci">⏱</span><span><b>前方 ${fmtM(ahead)}</b> 區間測速${lim?` · 限速 <b>${lim}</b>`:''}<small>${esc(cam.addr||'')}${over?(cam.addr?' · ':'')+'⚠ 目前超速':''}</small></span>`
     :`<span class="ci">${CAM_ICON[k]}</span><span><b>${fmtM(ahead)}</b> 後 ${ci.name}${spd&&lim?` · 限速 <b>${lim}</b>`:''}<small>${esc(cam.addr||'')}${ci.tip?(cam.addr?' · ':'')+esc(ci.tip):''}${over?' · ⚠ 目前超速':''}</small></span>`;cls=over||k==='red'?'warn':''}
   else if(k!=='sec'){const name=k==='mob'?'常見臨時測速點':CAM_KIND[k].n;txt=`<span class="ci">✅</span><span><b>已通過${name}</b></span>`;const key=cam.lat+'_'+cam.kind+'_end';if(!SC.said[key]){SC.said[key]=1;if(spd)sayQ('測速結束')}}}
- SC.short=SC.sec?`⏱ 區間均速 ${Math.round(((p.t||Date.now())-SC.sec.t0)>3000?(N.along-SC.sec.a0)/(((p.t||Date.now())-SC.sec.t0)/1000)*3.6:kmh||0)}${lim?'/'+lim:''}`:cam&&ahead>0?`${CAM_ICON[cam.kind]} ${fmtM(ahead)}${lim?' 限速'+lim:''}`:'';SC.over=over;
+ SC.short=SC.sec?`⏱ 區間均速 ${Math.round(secAvg(SC.sec,p.t||Date.now())??(kmh||0))} 剩${fmtM(Math.max(0,SC.sec.s.b.along-N.along))}${lim?'/'+lim:''}`:cam&&ahead>0?`${CAM_ICON[cam.kind]} ${fmtM(ahead)}${lim?' 限速'+lim:''}`:'';SC.over=over;
  const h=$('#hCam');if(txt&&(SC.sec||camNear||(cam&&cam.kind==='sec'&&ahead>0&&ahead<=800))){h.innerHTML=txt;h.className=cls;h.style.display='flex'}else h.style.display='none';
  /* 速度表 */
  if(kmh!=null&&S.spdo!==0){el.classList.add('on');const ov=lim&&Math.round(kmh)>lim,ov2=lim&&kmh>lim*1.1;el.className='on'+(ov2?' bad':ov?' warn':'');
-  el.innerHTML=`<div class="sv">${Math.round(kmh)}</div><div class="su">km/h</div>${lim?`<div class="sl">${lim}</div>`:''}`;
+  /* v2.4.2 顯示的時速依設定校正成和車上時速表一樣(機動車輛預設 +8%;走路、腳踏車不校正) */const cal=['walk','bike'].includes(mode)?0:(S.spdCal==null?8:+S.spdCal||0),kd=kmh<1?0:kmh*(1+cal/100);
+  el.innerHTML=`<div class="sv">${Math.round(kd)}</div><div class="su">km/h</div>${lim?`<div class="sl">${lim}</div>`:''}`;
   if(ov2&&!SC.said['ov'+Math.floor(N.along/300)]&&!cam&&!SC.sec){SC.said['ov'+Math.floor(N.along/300)]=1;sayQ('您已超速')}}}
 /* ---------- 回報臨時測速點 ---------- */
 /* 回報:先記下位置(按下的那一刻),再選種類;沒選的話 6 秒後當作臨時測速 */
@@ -5179,19 +5197,21 @@ function gpsPrune(path,G0,tol=15){if(!path||path.length<2||!G0||G0.length<2)retu
  const s0=snap(G,gc,out[0][0],out[0][1]).along;if(s0>25){const pre=[];for(let k=0;k<G.length&&gc[k]<s0-1;k++)pre.push([G[k][0],G[k][1],1]);out.unshift(...pre)}
  if(gEnd-lastKeptA>25)fill(lastKeptA,gEnd+1);
  return out}
-async function rpNavRepair(r,force){try{if((r.drvFix===11&&!force)||r.imp||!r.plan||!r.trk||r.trk.length<3)return;delete r.drv;r.B=null;
- const m=r.mode;if(isTr(r)||m==='bus'){r.drvFix=11;save();return}
+async function rpNavRepair(r,force){try{if((r.drvFix===12&&!force)||r.imp||!r.plan||!r.trk||r.trk.length<3)return;delete r.drv;r.B=null;
+ const m=r.mode;if(isTr(r)||m==='bus'){r.drvFix=12;save();return}
  const C=m==='walk'?['pedestrian',{}]:m==='bike'?['bicycle',{}]:['auto',{service_penalty:120,service_factor:4}];
- let P=r.trk.filter(x=>x[3]==null||+x[3]<=25).map(x=>[+x[0],+x[1],+x[2]]);if(P.length<3){r.drvFix=11;save();return}
+ let P=r.trk.filter(x=>x[3]==null||+x[3]<=25).map(x=>[+x[0],+x[1],+x[2]]);if(P.length<3){r.drvFix=12;save();return}
  /* 出發前在原地等定位時 GPS 會亂飄(會畫成鑽進別人家):真正開始移動(離起點 20 公尺)之前的點只留最後一個 */{const k=P.findIndex(x=>dist(x[1],x[2],P[0][1],P[0][2])>20);if(k>1)P=P.slice(k-1)}
  /* 抵達目的地之後的點不要 */const PL=decPoly(r.plan,5),D=r.to&&r.to.lat!=null?[+r.to.lat,+r.to.lon]:PL.length?PL[PL.length-1]:null;
  if(D){let k=-1,best=1e9,bi=-1;for(let i=0;i<P.length;i++){const d=dist(P[i][1],P[i][2],D[0],D[1]);if(d<best){best=d;bi=i}if(d<=30){k=i;break}}if(k<0&&best<90)k=bi;if(k>=1)P=P.slice(0,k+1)}
  if(r.arrived){const k=P.findIndex(x=>x[0]>r.arrived);if(k>1)P=P.slice(0,k)}
- /* 太密的點抽稀(對路比較穩) */const Q=[];P.forEach((x,i)=>{const l=Q[Q.length-1];if(!l||i===P.length-1||dist(l[1],l[2],x[1],x[2])>=8)Q.push(x)});if(Q.length<2){r.drvFix=11;save();return}
+ /* 太密的點抽稀(對路比較穩) */const Q=[];P.forEach((x,i)=>{const l=Q[Q.length-1];if(!l||i===P.length-1||dist(l[1],l[2],x[1],x[2])>=8)Q.push(x)});if(Q.length<2){r.drvFix=12;save();return}
  const offN=path=>{const cum=cumDist(path);let n=0;Q.forEach(x=>{if(snap(path,cum,x[1],x[2]).d>25)n++});return n};
- let best=await rpMatch(Q,C[0],C[1]);if(!best&&Q.length>8)best=await rpMatch(Q.slice(3,-1),C[0],C[1]);let bo=best?offN(best):1e9;
+ /* v2.4.2 先用手機裡的道路資料離線對齊(和匯入行跡同一套:會剪掉 GPS 飄進巷口的岔路、認得白名單街道);對不起來才用線上服務 */
+ let best=null,loc=false;if(m!=='walk'&&typeof fpiLocal==='function'){try{const t0=P[0][0],t1=P[P.length-1][0],seg=r.trk.filter(x=>x[0]>=t0&&x[0]<=t1).map(x=>[x[0],+x[1],+x[2],x[3]]);const cl=fpiClean(seg,m);let L=await fpiLocal(cl,m);if(L&&L.pts&&L.off<=L.n*.5)L=await fpiPatch(L,m);if(L&&L.pts&&L.pts.length>1&&L.off<=L.n*.15){best=loopCut(L.pts);loc=true}}catch(e){}}
+ if(!best)best=await rpMatch(Q,C[0],C[1]);if(!best&&Q.length>8)best=await rpMatch(Q.slice(3,-1),C[0],C[1]);let bo=best?offN(best):1e9;
  /* 汽機車:有些路地圖標成行人路其實可以走,對不上時放寬再對一次,選比較貼近 GPS 的 */
- if(C[0]==='auto'&&bo>=2){const alt=await rpMatch(Q,'auto',{ignore_access:true,service_penalty:120,service_factor:4});if(alt){const ao=offN(alt);if(ao<bo&&await altOk(best,alt)){best=alt;bo=ao}}}
+ if(C[0]==='auto'&&bo>=2&&!loc){const alt=await rpMatch(Q,'auto',{ignore_access:true,service_penalty:120,service_factor:4});if(alt){const ao=offN(alt);if(ao<bo&&await altOk(best,alt)){best=alt;bo=ao}}}
  if(best){const gl=cumDist(Q.map(x=>[x[1],x[2]])),ml=cumDist(best);if(ml[ml.length-1]>gl[gl.length-1]*1.5+300)best=null}
  /* 第一次接近目的地(40 公尺內)就算到了,後面的不畫 */
  const trimEnd=pa=>{if(!pa||!D)return pa;let bi=-1,bd=1e9,bj=-1;for(let i=0;i<pa.length;i++){const d=dist(pa[i][0],pa[i][1],D[0],D[1]);if(d<=40){bi=i;break}if(d<bd){bd=d;bj=i}}if(bi<0&&bd<90)bi=bj;
@@ -5205,14 +5225,14 @@ async function rpNavRepair(r,force){try{if((r.drvFix===11&&!force)||r.imp||!r.pl
  /* 反方向也要檢查:路線上有多少比例的長度貼在 GPS 旁邊(多出來的路、繞圈會讓這個比例下降) */
  const prec=(pa,th=18)=>{const c=cumDist(pa);let ok=0;for(let i=1;i<pa.length;i++){const m=[(pa[i-1][0]+pa[i][0])/2,(pa[i-1][1]+pa[i][1])/2];if(snap(GQ,gqc,m[0],m[1]).d<=th)ok+=c[i]-c[i-1]}return c[c.length-1]>0?ok/c[c.length-1]:0};
  /* GPS 常會偏到路旁 15~25 公尺(像大樓、廠區旁):對路結果本身已經在公開道路上,容許偏差放寬到 28 公尺,不會又被拉回 GPS 畫進私人道路 */
- const cands=[],add=(src,p0,pri)=>{if(!p0||p0.length<2)return;const p=gpsPrune(p0,GQ,src==='gps'?28:15);cands.push({src,p,c:Math.min(cov(p),src==='gps'?Math.min(1,prec(p,30)+.05):prec(p)),pri})};
+ const cands=[],add=(src,p0,pri)=>{if(!p0||p0.length<2)return;const p=src==='gps'&&loc?p0:gpsPrune(p0,GQ,src==='gps'?28:15);cands.push({src,p,c:Math.min(cov(p),src==='gps'?Math.min(1,prec(p,30)+.05):prec(p)),pri})};
  if(best)add('gps',best,2);
  {const np=navPath(r);if(np)add('plan',trimEnd(np),1)}
  add('raw',trimEnd(gpsPath()),0);
  cands.sort((a,b)=>(b.c>=.9)-(a.c>=.9)||(b.c>=.9&&a.c>=.9?b.pri-a.pri:b.c-a.c));const pick=cands[0];
  /* 用 GPS 補的片段(不一定在路上,會穿過街廓或抄斜線):改用路線服務在兩端之間找實際道路接起來 */
  let fin=pick.p;if(pick.src!=='raw')try{fin=await roadFill(pick.p,C)}catch(e){}
- r.drvSrc=pick.src;r.drvCov=Math.round(pick.c*100);r.drv=encPoly(dpS(fin.map(p=>[p[0],p[1]]),1.5,6000),5);r.drvFix=11;save()}catch(e){}}
+ r.drvSrc=pick.src;r.drvLoc=loc?1:0;r.drvCov=Math.round(pick.c*100);r.drv=encPoly(dpS(fin.map(p=>[p[0],p[1]]),1.5,6000),5);r.drvFix=12;save()}catch(e){}}
 async function roadFill(P,C){if(!P.some(p=>p[2]))return P;const out=[];let i=0,n=0;
  while(i<P.length){if(!P[i][2]){out.push(P[i]);i++;continue}let j=i;while(j<P.length&&P[j][2])j++;const a=out.length?out[out.length-1]:null,b=j<P.length?P[j]:null,run=P.slice(i,j);
   let rl=0;const seq=[a].concat(run,[b]).filter(Boolean);for(let k=1;k<seq.length;k++)rl+=dist(seq[k-1][0],seq[k-1][1],seq[k][0],seq[k][1]);
@@ -5244,7 +5264,7 @@ async function rpPlanRepair(r,force){try{const road=(MODES[r.mode]&&MODES[r.mode
    const offN=pa=>{const c=cumDist(pa);let n=0;Q.forEach(x=>{if(snap(pa,c,x[1],x[2]).d>25)n++});return n};
    const C=r.mode==='bike'?['bicycle',{}]:r.mode==='walk'?['pedestrian',{}]:['auto',{service_penalty:120,service_factor:4}];
    let best=Q.length>1?await rpMatch(Q,C[0],C[1]):null,bo=best?offN(best):1e9;
-   if(C[0]==='auto'&&bo>=2){const alt=await rpMatch(Q,'auto',{ignore_access:true,service_penalty:120,service_factor:4});if(alt){const ao=offN(alt);if(ao<bo&&await altOk(best,alt)){best=alt;bo=ao}}}
+   if(C[0]==='auto'&&bo>=2&&!loc){const alt=await rpMatch(Q,'auto',{ignore_access:true,service_penalty:120,service_factor:4});if(alt){const ao=offN(alt);if(ao<bo&&await altOk(best,alt)){best=alt;bo=ao}}}
    if(best){const gl=cumDist(Q.map(x=>[x[1],x[2]])),ml=cumDist(best);if(ml[ml.length-1]>gl[gl.length-1]*1.5+300)best=null}
    if(best){pl=loopCut(gpsPrune(best,Q.map(x=>[x[1],x[2]]),28));r.drvSrc='gps'}else if(r.__lf){pl=r.__lf.pts;r.drvSrc='gps'}}
   else if(pl.some((p,i)=>i&&dist(pl[i-1][0],pl[i-1][1],p[0],p[1])>600)){toast('正在把路線修正到道路上…',4000);const np=await fpiGapFill(pl,r.mode);if(np&&np.length>pl.length)pl=np}}
@@ -5267,7 +5287,7 @@ async function okRouteToggle(r){if(r.okRoute){if(!await askDel('取消這條常�
  DB.recs.forEach(x=>{if(x!==r&&x.okRoute&&odSame(x,r))delete x.okRoute});r.okRoute=Date.now();delete r.noPast;save();
  try{okUpd()}catch(e){}toast(`⭐ 已設為常走路線:之後導航「${(r.from&&r.from.name)||'起點'} → ${(r.to&&r.to.name)||'終點'}」會出現這條`,4000);return true}
 async function openReplay(id){const r=DB.recs.find(x=>x.id===id);if(!r)return;if(RP.meIdle){RP.meIdle.remove();RP.meIdle=null}show('rp');initRp();rpIdle(false);RP.rec=r;stopPlay();rpLay.clearLayers();rpClearVeh();
- setTimeout(()=>rpMap.invalidateSize(),80);if(r.imp&&(r.gapFix||0)<10)await rpPlanRepair(r);if(['train','hsr','mrt'].includes(r.mode)&&!(r.railFix>=2)){/* v2.2.3 背景對齊鐵軌:先直接顯示回放,對齊好了再自動換成沿鐵軌的路線(不用等) */railFixRec(r).then(ch=>{if(!ch||RP.rec!==r)return;RP.B=null;const f=RP.pos,pl=RP.play;try{RP.B=rpBuild(r);if(!RP.ll)return;drawStatic(f>=1&&!pl);if(f<1||pl){RP.pos=f;frameAt(f);setBar()}toast('🚆 已沿鐵軌更新列車路線',1800)}catch(e){}}).catch(()=>{})}if(!r.imp&&r.drvFix!==11){toast('正在依 GPS 整理回放路線…',2500);await rpNavRepair(r);if(r.drvSrc==='raw')toast('對路服務沒有回應,先照 GPS 軌跡畫(之後可在播放設定重新計算)',3500)}const B=rpBuild(r),t=B.t;const dur=t.length>1?t[t.length-1][0]-t[0][0]:0;
+ setTimeout(()=>rpMap.invalidateSize(),80);if(r.imp&&(r.gapFix||0)<10)await rpPlanRepair(r);if(['train','hsr','mrt'].includes(r.mode)&&!(r.railFix>=2)){/* v2.2.3 背景對齊鐵軌:先直接顯示回放,對齊好了再自動換成沿鐵軌的路線(不用等) */railFixRec(r).then(ch=>{if(!ch||RP.rec!==r)return;RP.B=null;const f=RP.pos,pl=RP.play;try{RP.B=rpBuild(r);if(!RP.ll)return;drawStatic(f>=1&&!pl);if(f<1||pl){RP.pos=f;frameAt(f);setBar()}toast('🚆 已沿鐵軌更新列車路線',1800)}catch(e){}}).catch(()=>{})}if(!r.imp&&r.drvFix!==12){toast('正在依 GPS 整理回放路線…',2500);await rpNavRepair(r);if(r.drvSrc==='raw')toast('對路服務沒有回應,先照 GPS 軌跡畫(之後可在播放設定重新計算)',3500)}const B=rpBuild(r),t=B.t;const dur=t.length>1?t[t.length-1][0]-t[0][0]:0;
  let mx=0;const sp0=r.trk||[];/* 最快速度:優先用 GPS 回報的速度(準確度差的點不算);沒有才用距離/時間,並排除 GPS 瞬間亂跳 */
  const CAP={walk:25,bike:60,scooter:130,heavy:200,car:200,truck:150,trailer:130,bus:120,mrt:110,train:160,hsr:320}[r.mode]||200;
  const gs=r.imp?[]:sp0.filter(x=>x[4]!=null&&(x[3]||0)<=30).map(x=>x[4]*3.6).filter(v=>v<=CAP);
@@ -5531,7 +5551,10 @@ const Fav=(()=>{let map,lay,tmp=null,lyr='st',SR=[];const G={map:null,on:false,r
  function draw(){if(!map)return;bar();lay.clearLayers();Object.entries(DB.fav).forEach(([id,f])=>{if(S.hidden.includes(f.cat))return;const c=catOf(f.cat);
   L.marker([f.lat,f.lon],{icon:pinIcon(c.c,c.e),title:f.name}).on('click',()=>info(id)).addTo(lay);if(map.getZoom()>=14)L.marker([f.lat,f.lon],{icon:lblIcon(f.name||'','small'),interactive:false}).addTo(lay)});glDraw()}
  $('#catBar').onclick=e=>{const b=e.target.closest('[data-ck],[data-cm]');if(!b)return;if(b.dataset.cm){catMgr();return}const k=b.dataset.ck;S.hidden=S.hidden.includes(k)?S.hidden.filter(x=>x!==k):S.hidden.concat(k);saveS();draw()};
- function openNew(lat,lon,name='',cat=''){autoLoc.hold=Date.now();init();const id='f'+uid();info(id,{lat,lon,name,cat:cat||'ot',addr:'',t:Date.now(),isNew:1});map.setView([lat,lon],Math.max(map.getZoom(),16),{animate:false});requestAnimationFrame(()=>above(lat,lon))}
+ async function openNew(lat,lon,name='',cat=''){autoLoc.hold=Date.now();init();
+  /* v2.4.2 這個地點已經收藏過:先跳提示,不會重複加入 */let dupOk=0;const du=favDup({lat,lon,name});if(du){const g=DB.fav[du];const r=await dlg(`<h3>⭐ 這個地點已經收藏過了</h3><p class="sub">${catOf(g.cat).e} 「${esc(g.name||g.addr||'')}」${g.addr?'<br>'+esc(g.addr):''}</p><div class="acts" style="justify-content:flex-end"><button class="btn" data-x="0">取消</button><button class="btn" data-x="new">仍要另外新增</button><button class="btn pri" data-x="open">查看已收藏的</button></div>`);
+   if(r==='open'){map.setView([g.lat,g.lon],Math.max(map.getZoom(),16),{animate:false});if(G.on&&G.ready)go(g.lat,g.lon,17);info(du);requestAnimationFrame(()=>above(g.lat,g.lon));return}if(r!=='new')return;dupOk=1}
+  const id='f'+uid();info(id,{lat,lon,name,cat:cat||'ot',addr:'',t:Date.now(),isNew:1,dupOk});map.setView([lat,lon],Math.max(map.getZoom(),16),{animate:false});requestAnimationFrame(()=>above(lat,lon))}
  /* 讓插的旗子露在資訊頁上方,不會被蓋住 */
  function above(lat,lon){const sh=$('#sheet').getBoundingClientRect(),top=$('#fvTop').getBoundingClientRect().bottom||100,ty=Math.max(top+50,(top+sh.top)/2);
   if(G.on&&G.ready){G.map.easeTo({center:[lon,lat],zoom:Math.max(G.map.getZoom(),16.5),offset:[0,ty-innerHeight/2],duration:600});return}
@@ -5561,7 +5584,7 @@ const Fav=(()=>{let map,lay,tmp=null,lyr='st',SR=[];const G={map:null,on:false,r
    cat=b.dataset.c;$$('#fC .btn').forEach(x=>x.classList.toggle('on',x===b));if(tmp){tmp.setIcon(pinIcon(catOf(cat).c,catOf(cat).e));syncTmp()}};
   const collect=()=>({...f,name:$('#fN').value.trim(),cat,note:$('#fNote').value.trim(),isNew:undefined});
   $('#fSave').onclick=async()=>{const v=collect();if(!v.name)v.name=v.addr||ll;delete v.isNew;
-   /* v2.4.1 已經收藏過的地點不能再收藏一次 */const du=favDup(v,draft?null:id);if(du){const g=DB.fav[du];const r=await dlg(`<h3>已經收藏過了</h3><p class="sub">「${esc(g.name||g.addr||'')}」${draft?'已經在收藏裡,不會重複加入。':'和這個地點重複(同一個位置或同名)。'}</p><div class="acts" style="justify-content:flex-end"><button class="btn" data-x="0">${draft?'關閉':'取消'}</button>${draft?'':'<button class="btn" data-x="keep">仍然儲存</button>'}<button class="btn pri" data-x="open">查看已收藏的</button></div>`);
+   /* v2.4.1 已經收藏過的地點不能再收藏一次 */const ok1=v.dupOk;delete v.dupOk;const du=ok1?null:favDup(v,draft?null:id);if(du){const g=DB.fav[du];const r=await dlg(`<h3>已經收藏過了</h3><p class="sub">「${esc(g.name||g.addr||'')}」${draft?'已經在收藏裡,不會重複加入。':'和這個地點重複(同一個位置或同名)。'}</p><div class="acts" style="justify-content:flex-end"><button class="btn" data-x="0">${draft?'關閉':'取消'}</button>${draft?'':'<button class="btn" data-x="keep">仍然儲存</button>'}<button class="btn pri" data-x="open">查看已收藏的</button></div>`);
     if(r==='open'){clrTmp();sheetOnClose=null;go(g.lat,g.lon,17);info(du);return}if(r!=='keep')return}DB.fav[id]=v;save();clrTmp();sheetOnClose=null;closeSheet();draw();toast('已收藏:'+v.name)};
   if($('#fDel'))$('#fDel').onclick=async()=>{if(await dlg(`<h3>刪除收藏「${esc(f.name)}」?</h3><div class="acts" style="justify-content:flex-end"><button class="btn" data-x="0">取消</button><button class="btn dang" data-x="1">刪除</button></div>`)){delete DB.fav[id];save();closeSheet();draw()}};
   const pt=()=>({name:$('#fN').value.trim()||f.addr||ll,lat:f.lat,lon:f.lon,addr:f.addr});
@@ -5611,7 +5634,7 @@ const Fav=(()=>{let map,lay,tmp=null,lyr='st',SR=[];const G={map:null,on:false,r
    if(e.target.id==='cAdd'){await newCat();catMgr()}if(e.target.id==='cReset'){DEF_CATS.forEach(c=>{if(!DB.cats.some(x=>x.k===c.k))DB.cats.splice(DB.cats.length-1,0,{...c})});save();draw();catMgr()}}}
  /* 清單 */
  const favSheet=edit=>{const n=Object.keys(DB.fav).length;openSheet(`<div class="shh"><h2>☰ 收藏地點(${n})</h2><span>${n?`<button class="btn sm ${edit?'on':''}" id="flEd">${edit?'完成':'↕ 排序'}</button> `:''}<button class="btn" onclick="closeSheet()">✕</button></span></div>
-  ${n?favListHtml(edit):'<div class="empty">還沒有收藏<br>在地圖上長按任何位置就能插旗收藏</div>'}<p class="sub">按 📌 可以把常用地點釘選在最上面;按「↕ 排序」可以自己調整順序。</p>`);
+  ${n?favDupBar()+favListHtml(edit):'<div class="empty">還沒有收藏<br>在地圖上長按任何位置就能插旗收藏</div>'}<p class="sub">按 📌 可以把常用地點釘選在最上面;長按地點可以取消收藏,長按後拖動可以排序。</p>`);
   favListBind($('#shB'),id=>{const f=DB.fav[id];go(f.lat,f.lon,17);info(id)},()=>{const st=$('#sheet').scrollTop;favSheet(edit);$('#sheet').scrollTop=st});if($('#flEd'))$('#flEd').onclick=()=>favSheet(!edit)};
  $('#fList').onclick=()=>favSheet(false);
  /* 搜尋 */
@@ -5707,11 +5730,11 @@ $('#bTdxC').onclick=()=>{TDX.mem={};try{Object.keys(localStorage).filter(k=>k.st
 /* 測速照相 */
 let CIC=null;function camInfo(){if(!CIC||CIC.v!==KVV){const g=(kvGet('govcams2')||kvGet('govcams')||{}),cnt={};(g.d||[]).forEach(c=>{const k=c.kind||(c.sec?'sec':'fix');cnt[k]=(cnt[k]||0)+1});CIC={v:KVV,g:{t:g.t,d:{length:(g.d||[]).length}},cnt,imp:(kvGet('impcams')||[]).length}}const g=CIC.g,n=g.d.length,cnt=CIC.cnt;
  $('#camKinds').innerHTML=Object.keys(CAM_KIND).map(k=>`<label class="btn sm"><input type="checkbox" data-ck="${k}" ${camOn(k)?'checked':''}> ${CAM_KIND[k].i} ${CAM_KIND[k].n}${cnt[k]?' '+cnt[k]:''}</label>`).join('');
- $$('#camKinds [data-ck]').forEach(i=>i.onchange=()=>{S.camOff=S.camOff||{};S.camOff[i.dataset.ck]=!i.checked;saveS();if(N.on)camDraw()});$('#camInfo').innerHTML=`政府資料:<b>${n}</b> 個照相/執法點${g.t?'(更新於 '+fmtD(g.t)+')':'(尚未下載)'} · 匯入:<b>${CIC.imp}</b> · 你回報的點:<b>${DB.cams.length}</b>`;$('#sSpdo').value=S.spdo===0?'0':'1'}
+ $$('#camKinds [data-ck]').forEach(i=>i.onchange=()=>{S.camOff=S.camOff||{};S.camOff[i.dataset.ck]=!i.checked;saveS();if(N.on)camDraw()});$('#camInfo').innerHTML=`政府資料:<b>${n}</b> 個照相/執法點${g.t?'(更新於 '+fmtD(g.t)+')':'(尚未下載)'} · 匯入:<b>${CIC.imp}</b> · 你回報的點:<b>${DB.cams.length}</b>`;$('#sSpdo').value=S.spdo===0?'0':'1';$('#sSpdCal').value=String(S.spdCal==null?8:S.spdCal)}
 $('#bCamUp').onclick=async()=>{$('#camInfo').textContent='下載中…';try{const a=await govCams(true);toast(a.length?`已更新 ${a.length} 個照相/執法點`:'下載失敗,請稍後再試或手動匯入 CSV',3000)}catch(e){toast('下載失敗')}camInfo()};
 $('#fCam').onchange=async e=>{try{const t=await e.target.files[0].text();const a=camsFromRows(parseCSV(t),'imp');if(!a.length)throw 0;const old=kvGet('impcams')||[];kvSet('impcams',old.concat(a));SC.gov=null;toast(`已匯入 ${a.length} 個測速點`)}catch(x){toast('看不懂這個檔案,需要有經度、緯度欄位')}e.target.value='';camInfo()};
 $('#bCamClr').onclick=async()=>{if(!await askDel('清除你回報的測速照相?','清除後無法復原。','清除'))return;DB.cams=[];save();camInfo();toast('已清除')};
-$('#sSpdo').onchange=e=>{S.spdo=+e.target.value;saveS()};
+$('#sSpdo').onchange=e=>{S.spdo=+e.target.value;saveS()};$('#sSpdCal').onchange=e=>{S.spdCal=+e.target.value;saveS()};
 /* 備份 */
 $('#bBk').onclick=()=>{flush();saveFile('行跡導航備份_'+todayStr()+'.json',JSON.stringify({...DB,s:{...S,tdxKey:'',gkey:''}}))};
 $('#fBk').onchange=async e=>{try{const j=JSON.parse(await e.target.files[0].text());if(!j.recs&&!j.fav)throw 0;const ids=new Set(DB.recs.map(r=>r.id));(j.recs||[]).forEach(r=>{if(!ids.has(r.id))DB.recs.push(r)});
@@ -5850,6 +5873,9 @@ setTimeout(async()=>{
  const oj=DLJ.job('road');if(RDP.ok()&&oj&&oj.b&&oj.d&&oj.d.some(v=>!v)){if(await RDP.start(oj.b,oj.label||''))return toast('道路資料改用快速下載',2500)}
  const ob=DLJ.job('bike');if(RDPB.ok()&&ob&&ob.b&&ob.d&&ob.d.some(v=>!v))await RDPB.start(ob.b,ob.label||'');
  RDP.resume();RDPB.resume();RDPV.resume();RDPBus.resume();
+ /* v2.4.2 下載過的道路資料,GitHub 每週產生新版後自動在背景更新(新增的巷弄、白名單街道才會出現) */
+ setTimeout(async()=>{try{if(!RDP.ok())return;const j=RDP.job();if(!j||!j.ps||!j.ps.length||!j.ps.every(k=>j.done[k])||Object.keys(RDP.live).length)return;const m=await rdMan();if(!m||!m.packs||!m.t||m.t<=(j.t||0)+36e5)return;
+  const bx=j.ps.map(k=>m.packs[k]&&m.packs[k].bb).filter(Boolean).map(b=>[b[0]+.01,b[1]+.01,b[2]-.01,b[3]-.01]);if(bx.length&&await RDP.start(bx,j.label||''))toast('🚦 道路資料有新版本,背景更新中',3000)}catch(e){}},25000);
  /* 離線地圖/道路資料有新版(每週一更新)時,問要不要更新;每個版本只問一次 */
  try{if(RDPV.ok()&&Date.now()-(kvGet('rdupd_t')||0)>864e5){kvSet('rdupd_t',Date.now());const m=await rdMan();if(m&&m.t&&kvGet('rdupd_skip')!==m.t){
   const olds=[[RDPV,'向量地圖',k=>m.vec&&m.vec.packs&&m.vec.packs[k]],[RDP,'道路資料',k=>m.packs&&m.packs[k]],[RDPBus,'公車站牌',k=>m.bus&&m.bus.packs&&m.bus.packs[k]]].map(([R,n,f])=>{const j=R.job(),mt=R.o.tOf?R.o.tOf(m):m.t;return j&&j.ps&&j.ps.every(k=>j.done[k])&&mt-(j.t||0)>3*864e5?{R,n,j,mt,ps:j.ps.filter(f).map(k=>({k,...f(k)}))}:null}).filter(x=>x&&x.ps.length);
@@ -6019,13 +6045,13 @@ function fpiClean(seg,m){const vmax={walk:4,bike:12,scooter:32,heavy:45,car:45,t
    只用這種交通工具可以走的道路:機車不走國道、快速道路和「機車禁行」的汽車地下道(會走機車專用道);汽車不走機車專用道。 */
 /* v2.3.4 對齊道路前,先把這段路經過的「離線道路資料包」從 GitHub 下載好(以前手機沒有那一區的資料時,只能一格格問伺服器,常常拿不到,路線就沒貼在道路上) */
 const RDE={};async function rdEnsureFor(pts){if(!IS_APP||!NB.packGet||!pts||pts.length<2)return;const m=await rdMan();if(!m||!m.packs)return;const need=new Set();
- const cum=cumDist(pts),T=cum[cum.length-1];for(let s=0;s<=T;s+=300){const p=pointAt(pts,cum,s).p;for(const d of[-.004,.004])for(const e of[-.004,.004]){const la=p[0]+d,lo=p[1]+e,k=OSMC.key(la,lo);if(OSMC.get(k))continue;const pk=Math.floor(la/.5)+'_'+Math.floor(lo/.5);if(m.packs[pk])need.add(pk)}}
+ const cum=cumDist(pts),T=cum[cum.length-1];for(let s=0;s<=T;s+=300){const p=pointAt(pts,cum,s).p;for(const d of[-.004,.004])for(const e of[-.004,.004]){const la=p[0]+d,lo=p[1]+e,k=OSMC.key(la,lo),oc=OSMC.get(k);if(oc&&(!oc.p||(oc.t||0)>=m.t-36e5))continue;/* 資料包有新版(每週)也重新下載 */const pk=Math.floor(la/.5)+'_'+Math.floor(lo/.5);if(m.packs[pk])need.add(pk)}}
  const L=[...need].filter(pk=>!RDE[pk]);if(!L.length)return;await Promise.all(L.map(pk=>new Promise(res=>{const id='rde_'+pk+'_'+Date.now();RDE[pk]=1;const to=setTimeout(()=>{delete RDL[id];res()},90000);
   RDL[id]={cb:(i,ph)=>{if(ph==='ok'||ph==='err'||ph==='stop'){clearTimeout(to);delete RDL[id];if(ph!=='ok')delete RDE[pk];res()}}};NB.packGet(id,RDB+m.packs[pk].f,'oc2_')})));OSMC.mem={}}
 async function fpiLocal(seg,m){if(!seg||seg.length<2)return null;const T0=Date.now();const pts0=seg.map(x=>[+x[1],+x[2]]),r0={pts:pts0,cum:cumDist(pts0)};try{await rdEnsureFor(pts0)}catch(e){}let D;try{D=await OSMC.route(r0)}catch(e){return null}if(!D||!D.ways||D.ways.length<3)return null;
  const ways=D.ways.slice();try{const ks=OSMC.cellsFor(r0.pts,r0.cum);ks.forEach(k=>{const c=OSMC.svGet&&OSMC.svGet(k);if(c)c.w.forEach(w=>ways.push({id:w[0],t:w[1],g:decPoly(w[2],6)}))})}catch(e){}
  const walk=m==='walk',FT=/^(footway|pedestrian|steps|path|cycleway|corridor|bridleway|track)$/;
- const RAILM=['train','hsr','mrt'].includes(m),ok=t=>{if(RAILM)return!t.highway&&(m==='mrt'?/^(subway|light_rail|monorail|rail)$/:/^(rail|narrow_gauge)$/).test(t.railway||'')&&!/^(yard|siding|spur)$/.test(t.service||'');const hw=t.highway||'';if(!hw)return false;if(walk)return!/^motorway/.test(hw);if(m==='bike')return!/^(motorway|trunk)/.test(hw)&&t.bicycle!=='no'&&!/^(steps)$/.test(hw);if(FT.test(hw))return false;return!spForb(t,m)};
+ const RAILM=['train','hsr','mrt'].includes(m),ok=t=>{if(RAILM)return!t.highway&&(m==='mrt'?/^(subway|light_rail|monorail|rail)$/:/^(rail|narrow_gauge)$/).test(t.railway||'')&&!/^(yard|siding|spur)$/.test(t.service||'');const hw=t.highway||'';if(!hw)return false;if(walk)return!/^motorway/.test(hw);if(m==='bike')return!/^(motorway|trunk)/.test(hw)&&t.bicycle!=='no'&&!/^(steps)$/.test(hw);if(FT.test(hw))return!!t.pedok&&(m==='scooter'?/[pf]/.test(t.pedok):t.pedok==='p')/* v2.4.2 地圖標成行人路、其實汽機車可以走的街道(白名單) */;return!spForb(t,m)};
  const K=q=>q[0].toFixed(6)+','+q[1].toFixed(6),N=new Map(),E=[];const node=q=>{const k=K(q);let n=N.get(k);if(!n)N.set(k,n={k,q,out:[]});return n};
  ways.forEach(w=>{if(!w.t||!ok(w.t)||!w.g||w.g.length<2)return;const ow=walk||RAILM?0:rmOw(w.t);for(let i=0;i<w.g.length-1;i++){const a=node(w.g[i]),b=node(w.g[i+1]),len=dist(a.q[0],a.q[1],b.q[0],b.q[1]);if(len<.05)continue;
    const add=(u,v)=>{const e={u,v,len,w,i:E.length};E.push(e);u.out.push(e);return e};let f=null,rv=null;if(ow!==-1)f=add(a,b);if(ow!==1)rv=add(b,a);if(f&&rv){f.rev=rv;rv.rev=f}}});
@@ -6213,7 +6239,7 @@ async function railFixRec(r){if(!r||r.railFix>=2||!r.plan||!['train','hsr','mrt'
    · 小改版:只更新 app/index.html → 手機下載新網頁存起來,下次開啟(或立即)套用,不用重裝
    · 大改版(要新的原生功能):minApk 提高 → 提示下載新的 APK
    · 安裝檔:每個版本一個 Release(app-v版本),可以選最新或舊版本下載到手機 */
-const APP_VER='2.4.1';
+const APP_VER='2.4.2';
 const UPD={repo:'IanLin1120/xingji-roaddata',raw:'https://raw.githubusercontent.com/IanLin1120/xingji-roaddata/main/app/',busy:0};
 function verGt(a,b){const x=String(a||0).split('.').map(Number),y=String(b||0).split('.').map(Number);for(let i=0;i<Math.max(x.length,y.length);i++){const d=(x[i]||0)-(y[i]||0);if(d)return d>0}return false}
 function apkInfo(){try{return IS_APP&&NB.appInfo?JSON.parse(NB.appInfo()):null}catch(e){return null}}
