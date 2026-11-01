@@ -1102,7 +1102,6 @@ body.navigating #fabLoc{display:grid!important}
 #hbot #bOver{display:none!important}#fabOver{display:none;font-size:20px}body.navigating #fabOver{display:grid}
 .sigmk.me{cursor:pointer}
 #favCmp{bottom:calc(var(--nav) + 130px);display:none;font-size:15px;color:#e53935}#favCmp.on{display:grid}#favCmp i{font-style:normal;display:inline-block;transition:transform .2s}
-.nvfav{cursor:pointer;position:relative}.nvfav .nvfl{position:absolute;left:22px;top:2px;white-space:nowrap;font-size:11px;font-weight:700;background:rgba(255,255,255,.85);color:#4a3220;padding:1px 5px;border-radius:8px}
 </style>
 
 </head>
@@ -6256,30 +6255,31 @@ async function railFixRec(r){if(!r||r.railFix>=2||!r.plan||!['train','hsr','mrt'
 /* ================== v2.4.3 導航頁也顯示收藏的地點 ==================
    和「地圖」頁一樣的旗子;點一下或長按旗子 → 問要不要導航到這裡(也可以設成起點或中途點)。導航中不顯示,畫面比較乾淨。 */
 const NFV={lay:null,gl:[],key:'',glm:null};
-async function navFavAsk(id){const f=DB.fav[id];if(!f)return;const c=catOf(f.cat),hasDst=P.pts[P.pts.length-1]&&P.pts[P.pts.length-1].lat!=null;
- const r=await dlg(`<h3>${c.e} ${esc(f.name||f.addr||'收藏地點')}</h3>${f.addr?`<p class="sub">${esc(f.addr)}</p>`:''}${f.note?`<p class="sub">📝 ${esc(f.note)}</p>`:''}
-  <div class="acts" style="flex-direction:column;align-items:stretch"><button class="btn pri" data-x="go" style="justify-content:center">🧭 導航到這裡</button>
-  ${hasDst?'<button class="btn" data-x="via" style="justify-content:center">➕ 加為中途點</button>':''}<button class="btn" data-x="from" style="justify-content:center">🚩 設為起點</button><button class="btn" data-x="0" style="justify-content:center">取消</button></div>`);
- if(!r||r==='0')return;const pt={name:f.name||f.addr,lat:f.lat,lon:f.lon,addr:f.addr||''};
- if(r==='go')P.pts[P.pts.length-1]=pt;else if(r==='from')P.pts[0]=pt;else if(r==='via')P.pts.splice(P.pts.length-1,0,pt);
- if(P.pts[0]&&!P.pts[0].cur&&P.pts[0].lat==null)P.pts[0]={cur:1,name:'目前位置'};try{addRecent(pt)}catch(e){}renderWps();autoPlan()}
+/* 導航頁只做導航:點一下或長按旗子 → 要不要導航到這裡(刪除、編輯收藏請到「地圖」頁) */
+async function navFavAsk(id){const f=DB.fav[id];if(!f)return;const c=catOf(f.cat);
+ const r=await dlg(`<h3>${c.e} ${esc(f.name||f.addr||'收藏地點')}</h3>${f.addr?`<p class="sub">${esc(f.addr)}</p>`:''}<p class="sub">要導航到這裡嗎?</p>
+  <div class="acts" style="justify-content:flex-end"><button class="btn" data-x="0">取消</button><button class="btn pri" data-x="go">🧭 導航到這裡</button></div>`);
+ if(r!=='go')return;const pt={name:f.name||f.addr,lat:f.lat,lon:f.lon,addr:f.addr||''};P.pts=[{cur:1,name:'目前位置'},pt];try{addRecent(pt)}catch(e){}renderWps();autoPlan()}
 function navFavEl(el,id){let t=0,p0=null;el.addEventListener('touchstart',e=>{e.stopPropagation();p0=[e.touches[0].clientX,e.touches[0].clientY];clearTimeout(t);t=setTimeout(()=>{p0=null;vib(30);navFavAsk(id)},550)},{passive:true});
  el.addEventListener('touchmove',e=>{if(p0&&Math.hypot(e.touches[0].clientX-p0[0],e.touches[0].clientY-p0[1])>10){clearTimeout(t);p0=null}},{passive:true});
  el.addEventListener('touchend',()=>clearTimeout(t),{passive:true});el.addEventListener('click',e=>{e.stopPropagation();e.preventDefault();clearTimeout(t);navFavAsk(id)});el.addEventListener('contextmenu',e=>{e.preventDefault();e.stopPropagation()})}
-function navFavDraw(force){try{if(!navMap)return;const show=!N.on&&!(typeof TRG!=='undefined'&&TRG.on),gm=GLV&&GLV.map&&GLV.ready&&navViewOn()?GLV.map:null/* v2.4.4 向量地圖顯示中只畫在向量地圖上(以前兩張地圖都畫,會有不跟著移動的旗子、重複的標籤) */,z=gm?gm.getZoom()+1:navMap.getZoom();
+function navFavDraw(force){try{if(!navMap)return;const show=!N.on&&!(typeof TRG!=='undefined'&&TRG.on),gm=GLV&&GLV.map&&GLV.ready&&navViewOn()?GLV.map:null/* v2.4.4 向量地圖顯示中只畫在向量地圖上(以前兩張地圖都畫,會有不跟著移動的旗子、重複的標籤) */,z=gm?gm.getZoom():navMap.getZoom();
  const key=[show,!!gm,z>=15,JSON.stringify(S.hidden||[]),Object.entries(DB.fav).map(([k,f])=>k+f.lat+f.cat+f.name).join('|')].join('#');if(!force&&key===NFV.key&&NFV.glm===gm)return;NFV.key=key;NFV.glm=gm;
  if(NFV.lay){navMap.removeLayer(NFV.lay);NFV.lay=null}NFV.gl.forEach(m=>m.remove());NFV.gl=[];if(!show)return;
  const L0=Object.entries(DB.fav).filter(([,f])=>f.lat!=null&&!(S.hidden||[]).includes(f.cat));if(!gm)NFV.lay=L.layerGroup().addTo(navMap);
- L0.forEach(([id,f])=>{const c=catOf(f.cat);if(!gm){const m=L.marker([f.lat,f.lon],{icon:pinIcon(c.c,c.e,28),title:f.name,zIndexOffset:200}).addTo(NFV.lay);const el=m.getElement();if(el)navFavEl(el,id)}
+ L0.forEach(([id,f])=>{const c=catOf(f.cat);if(!gm){const m=L.marker([f.lat,f.lon],{icon:pinIcon(c.c,c.e),title:f.name,zIndexOffset:200}).addTo(NFV.lay);const el=m.getElement();if(el)navFavEl(el,id)}
   if(!gm&&z>=15)L.marker([f.lat,f.lon],{icon:lblIcon(f.name||'','small'),interactive:false}).addTo(NFV.lay);
-  if(gm){const e=document.createElement('div');e.className='pin nvfav';e.innerHTML=pinIcon(c.c,c.e,28).options.html+(z>=15?`<span class="nvfl">${esc(f.name||'')}</span>`:'');navFavEl(e,id);NFV.gl.push(new maplibregl.Marker({element:e,anchor:'bottom-left',offset:[-5,2]}).setLngLat([f.lon,f.lat]).addTo(gm))}})}catch(e){}}
+  /* v2.4.5 和「地圖」頁完全一樣的畫法:旗子、名稱分開放,位置用同一套錨點(以前旗子元素的樣式蓋掉了地圖的定位,縮放、移動時會跑位) */
+  if(gm){const e=document.createElement('div');e.className='pin';e.innerHTML=pinIcon(c.c,c.e).options.html;navFavEl(e,id);NFV.gl.push(new maplibregl.Marker({element:e,anchor:'bottom-left',offset:[-6,2]}).setLngLat([f.lon,f.lat]).addTo(gm));
+   if(z>=15){const l=document.createElement('div');l.className='flbl lbl small';l.innerHTML=lblIcon(f.name||'','small').options.html;NFV.gl.push(new maplibregl.Marker({element:l,anchor:'center'}).setLngLat([f.lon,f.lat]).addTo(gm))}}})
+ if(gm&&!gm._nvfz){gm._nvfz=1;gm.on('zoomend',()=>navFavDraw())}}catch(e){}}
 setInterval(()=>navFavDraw(),1500);
 /* ================== v2.4.0 線上更新(GitHub) ==================
    app/version.json:{app:網頁版本, apk:最新 APK 版本號, apkName, minApk:這版網頁至少要的 APK 版本號, notes}
    · 小改版:只更新 app/index.html → 手機下載新網頁存起來,下次開啟(或立即)套用,不用重裝
    · 大改版(要新的原生功能):minApk 提高 → 提示下載新的 APK
    · 安裝檔:每個版本一個 Release(app-v版本),可以選最新或舊版本下載到手機 */
-const APP_VER='2.4.4';
+const APP_VER='2.4.5';
 const UPD={repo:'IanLin1120/xingji-roaddata',raw:'https://raw.githubusercontent.com/IanLin1120/xingji-roaddata/main/app/',busy:0};
 function verGt(a,b){const x=String(a||0).split('.').map(Number),y=String(b||0).split('.').map(Number);for(let i=0;i<Math.max(x.length,y.length);i++){const d=(x[i]||0)-(y[i]||0);if(d)return d>0}return false}
 function apkInfo(){try{return IS_APP&&NB.appInfo?JSON.parse(NB.appInfo()):null}catch(e){return null}}
