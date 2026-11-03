@@ -6203,7 +6203,7 @@ async function fpiRun(days,addFav){if(FPI.busy)return;const j=FPI.j;if(!j||!days
    假移動刪掉、誤併的去回拆開;起訖地點名稱沿用原本的;你自己改過的交通工具、自己合併過的會保留(合併會自動再套用)。 */
 async function fpiRedo(){if(FPI.busy)return;
  /* 只檢查一段段匯入的紀錄:你合併過的、沒有 GPS 的(依停留點估算)不動 */
- const IR=DB.recs.filter(r=>r.imp&&!r.estT&&!r.mergedFrom&&((r.trkRaw&&r.trkRaw.length)||(r.trk&&r.trk.length)));if(!IR.length)return toast('還沒有從行跡記錄器匯入的紀錄');
+ const IR=DB.recs.filter(r=>r.imp&&!r.estT&&!r.mergedFrom&&r.trkRaw&&r.trkRaw.length>=3)/* 舊版匯入(只存少數幾個點、沒有原始 GPS)的紀錄資料不夠判斷,不動 */;if(!IR.length)return toast('還沒有從行跡記錄器匯入的紀錄');
  if(!await askDel('重新整理已匯入的行跡?',`會用最新規則逐段檢查 ${IR.length} 段匯入紀錄:GPS 亂跳算出來的假移動刪掉、誤併在一起的去程回程拆開。其他沒問題的紀錄、你合併過的、有開導航的紀錄都不會動。`,'開始整理'))return;
  const logEl=$('#fpiRedoLog'),log=t=>{if(logEl)logEl.innerHTML=t};FPI.redo=1;
  if(!$('#fpiLog')){const d=document.createElement('div');d.id='fpiLog';d.style.display='none';document.body.appendChild(d)}if(!$('#fpiGo')){const b=document.createElement('button');b.id='fpiGo';b.style.display='none';document.body.appendChild(b)}
@@ -6211,8 +6211,8 @@ async function fpiRedo(){if(FPI.busy)return;
  const nm=(lat,lon,t)=>{let b=null,bs=1e18;EP.forEach(e=>{const d=dist(lat,lon,e.lat,e.lon);if(d>150||/附近$/.test(e.name))return;const sc=d+Math.min(3600e3,Math.abs(e.t-t))/60000*3;if(sc<bs){bs=sc;b=e}});return b&&b.name};
  let nDel=0,nSplit=0,k=0;const oldJ=FPI.j;
  try{for(const r of IR){k++;if(k%5===0){log(`⏳ 檢查中 ${k}/${IR.length}…`);await sleep(0)}
-  const raw=(r.trkRaw&&r.trkRaw.length?r.trkRaw:r.trk).map(x=>[+x[0],+x[1],+x[2],x[3]==null?20:+x[3]]).filter(x=>x[3]<=120).sort((a,b)=>a[0]-b[0]);let segs;try{segs=fpiTrips(raw,[])}catch(e){continue}
-  if(segs.length===1){const sg=segs[0];if(Math.abs(sg[0][0]-raw[0][0])<90000&&Math.abs(sg[sg.length-1][0]-raw[raw.length-1][0])<90000)continue}
+  const raw=r.trkRaw.map(x=>[+x[0],+x[1],+x[2],x[3]==null?20:+x[3]]).filter(x=>x[3]<=120).sort((a,b)=>a[0]-b[0]);let segs;try{segs=fpiTrips(raw,[])}catch(e){continue}
+  if(segs.length===1)continue;/* 只有一段:維持原樣(只處理「整段是假移動」和「要拆成好幾段」) */
   if(!segs.length){DB.recs=DB.recs.filter(x=>x!==r);nDel++;continue}
   /* 要拆開(或範圍差很多):只拿這一段的 GPS 重新推算,同一天其他紀錄先保留起來 */
   const day=dk(r.t0),keep=DB.recs.filter(x=>x.imp&&x!==r&&dk(x.t0)===day);const J={fmt:'redo',p:{},v:[],trk:{[day]:raw},acts:{},trips:{}};
@@ -6220,7 +6220,7 @@ async function fpiRedo(){if(FPI.busy)return;
   FPI.j=J;DB.recs=DB.recs.filter(x=>!keep.includes(x));const ids0=new Set(DB.recs.filter(x=>x!==r).map(x=>x.id));await fpiRun([day],false);
   const made=DB.recs.filter(x=>x.imp&&!ids0.has(x.id)&&dk(x.t0)===day);made.forEach(x=>{if(r.impSrc==='user'||r.modeSet){if(x.mode!==r.mode){x.mode=r.mode;x.gapFix=0}x.impSrc='user';x.modeSet=1}
    const a=nm(x.from.lat,x.from.lon,x.t0),b=nm(x.to.lat,x.to.lon,x.t1||x.t0);if(a)x.from.name=a;if(b)x.to.name=b;x.title=(x.from.name||'起點')+' → '+(x.to.name||'終點')});
-  const ks=new Set(keep.map(x=>x.id));DB.recs=DB.recs.filter(x=>!ks.has(x.id)).concat(keep);if(made.length>1)nSplit++;else if(!made.length)nDel++}}
+  const ks=new Set(keep.map(x=>x.id));DB.recs=DB.recs.filter(x=>!ks.has(x.id)).concat(keep);if(made.length>1)nSplit++;else{/* 沒拆成功(例如和導航紀錄重疊被略過):放回原本那段 */DB.recs=DB.recs.filter(x=>!made.includes(x)).concat([r])}}}
  finally{FPI.j=oldJ;FPI.redo=0}
  try{mgReapply()}catch(e){}save();try{flush()}catch(e){}try{renderCal()}catch(e){}
  log(nDel||nSplit?`✅ 整理完成:刪掉 ${nDel} 段假移動、拆開 ${nSplit} 段誤併的去回(共檢查 ${IR.length} 段)`:`✅ 檢查了 ${IR.length} 段,都沒有問題`)}
@@ -6336,7 +6336,7 @@ setInterval(()=>navFavDraw(),1500);
    · 小改版:只更新 app/index.html → 手機下載新網頁存起來,下次開啟(或立即)套用,不用重裝
    · 大改版(要新的原生功能):minApk 提高 → 提示下載新的 APK
    · 安裝檔:每個版本一個 Release(app-v版本),可以選最新或舊版本下載到手機 */
-const APP_VER='2.4.7';
+const APP_VER='2.4.8';
 const UPD={repo:'IanLin1120/xingji-roaddata',raw:'https://raw.githubusercontent.com/IanLin1120/xingji-roaddata/main/app/',busy:0};
 function verGt(a,b){const x=String(a||0).split('.').map(Number),y=String(b||0).split('.').map(Number);for(let i=0;i<Math.max(x.length,y.length);i++){const d=(x[i]||0)-(y[i]||0);if(d)return d>0}return false}
 function apkInfo(){try{return IS_APP&&NB.appInfo?JSON.parse(NB.appInfo()):null}catch(e){return null}}
