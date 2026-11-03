@@ -2373,6 +2373,11 @@ function buildRoute(trip,v,extra){let pts=[],mans=[],legEnds=[];
   if(!(pv.st===mn.st||(pv.stAll||[]).includes(mn.st)))continue;const al=cum[Math.min(mn.idx,cum.length-1)],T=cum[cum.length-1];if(al<50||al>T-120)continue;
   const P=d=>pointAt(pts,cum,Math.max(0,Math.min(T,d))).p,a0=P(al-50),a1=P(al),b0=P(al+60),b1=P(al+120),br1=bearing(a0[0],a0[1],a1[0],a1[1]),br2=bearing(b0[0],b0[1],b1[0],b1[1]);
   const dd=Math.abs(((br2-br1)%360+540)%360-180);if(dd<30){mn.type=8;mn.jog=1;mn.side=''}}
+ /* v2.4.6 轉進旁邊的路又馬上轉回原本的路(路線帶著小尖刺:常用路線用的舊行跡、GPS 飄進巷口):兩個轉彎都當成直行 */
+ for(let k=1;k<mans.length-1;k++){const mn=mans[k],nx=mans[k+1],pv=mans[k-1],TT=[9,10,11,12,13,14,15,16,23,24];if(!TT.includes(mn.type)||!TT.includes(nx.type)||mn.jog)continue;
+  const T=cum[cum.length-1],a1=cum[Math.min(mn.idx,cum.length-1)],a2=cum[Math.min(nx.idx,cum.length-1)];if(a2-a1>45||a1<50||a2>T-80)continue;if(!(pv.st&&nx.st&&(pv.st===nx.st||(pv.stAll||[]).includes(nx.st))))continue;
+  const P=d=>pointAt(pts,cum,Math.max(0,Math.min(T,d))).p,x0=P(a1-50),x1=P(a1-5),y0=P(a2+20),y1=P(a2+70),dd=Math.abs(((bearing(y0[0],y0[1],y1[0],y1[1])-bearing(x0[0],x0[1],x1[0],x1[1]))%360+540)%360-180);
+  if(dd<30){mn.type=8;nx.type=8;mn.jog=nx.jog=1;mn.st=nx.st=pv.st;mn.side=nx.side=''}}
  mans.forEach(mn=>{mn.ins=zhIns(mn)});
  const tags=[];if(mans.some(x=>x.toll))tags.push('收費');if(mans.some(x=>x.hw))tags.push(mode==='heavy'?'⚠ 含國道路段':'含國道/高速');if(mans.some(x=>x.ferry))tags.push('渡輪');if(trip.ped)tags.push('含石板/地磚街道');if(trip.osrm)tags.push('備用路線服務');if(trip.scoot)tags.push('🛵 改走機車專用道');if(trip.walkStart)tags.push(`出發先直接走約 ${trip.walkStart} 公尺到人行道`);if(trip.walkEnd)tags.push(`最後約 ${trip.walkEnd} 公尺直接走到終點`);
  const big=mans.filter(x=>x.st).reduce((a,x)=>{a[x.st]=(a[x.st]||0)+x.len;return a},{});const main=Object.keys(big).sort((a,b)=>big[b]-big[a]).slice(0,2);
@@ -2526,7 +2531,7 @@ function meIcon(){if(mode==='walk')return L.divIcon({className:'walker',html:WAL
  return L.divIcon({className:'',html:`<div class="vico" id="vehEl">${vehSvg(mode,52)}</div>`,iconSize:[52,52],iconAnchor:[26,26]})}
 /* 換交通工具後,3D 地圖上的車輛圖示也要跟著換 */
 function glVeh(nav){if(!GLV.vel)return;if(BRW.on&&!N.on&&!nav)return brwDot();if(GLV.vehMode===mode)return;GLV.vehMode=mode;GLV.vel.innerHTML=`<div class="vico">${mode==='walk'?WALKER:vehSvg(mode,64)}</div>`}
-function startNav(sim){const r=P.routes[P.sel];if(!r)return;glVeh(1);closeSheet();setTimeout(navNativeStart,1500);navMap.options.touchZoom='center';GLV.manualZ=false;GLV.z=null;setTimeout(navLayout,50);
+function startNav(sim){const r=P.routes[P.sel];if(!r)return;if(!sim)setTimeout(()=>{try{if(typeof rdEnsureFor==='function'&&N.route)rdEnsureFor(N.route.pts).catch(()=>{})}catch(e){}},6000);/* v2.4.6 路線經過的道路資料有新版就更新(白名單街道、巷弄才認得) */glVeh(1);closeSheet();setTimeout(navNativeStart,1500);navMap.options.touchZoom='center';GLV.manualZ=false;GLV.z=null;setTimeout(navLayout,50);
  Object.assign(N,{on:true,overview:false,sim,orig:r,route:r,passed:0,offN:0,lastReroute:0,spoken:{},follow:true,lastIdx:0,along:0,arrived:false,lastPt:null,simT:0,waypts:r.locPts.slice(),base:{pts:r.pts,cum:r.cum},baseAl:0,origAl:0,lpJ:null,rjMiss:0,rjLast:false});/* 施工/封閉:規劃時查到的路段,導航中重新規劃也一律避開;選的路線還是會經過就提醒 */N.closeZ=P.closeZ&&P.closeZ.length?P.closeZ.slice():null;N.closeEx=null;N.clT=P.closeZ?Date.now():0;if(!sim&&P.closeZ&&routeHitsZ(r,P.closeZ)){setTimeout(()=>{const m='這條路線會經過施工或封閉、無法通行的路段,建議改選其他路線';banner('⚠ '+m,6000);speak(m);try{if(NB.alert)NB.alert('⚠ 路線經過施工/封閉路段',m)}catch(e){}},1500)}
  const rec={id:uid(),t0:Date.now(),mode,title:'',from:pick(r.locPts[0]),to:pick(r.locPts[r.locPts.length-1]),via:r.locPts.slice(1,-1).filter(p=>!p.through&&!p.past).map(pick),v:r.v,plan:encPoly(dpS(r.pts,2.5,4000)),planLen:r.len,planTime:r.time,trk:[],wpT:[],sim:!!sim,reroutes:0};
  rec.title=(rec.from.name||'起點')+' → '+(rec.to.name||'終點');rec.sigL=1;N.rec=rec;if(!sim)fqAdd(r.locPts,mode);P.back=null;
@@ -2593,10 +2598,12 @@ function onNavLoc(p){if(!N.on)return;N.pos=p;let r=N.route;const rec=N.rec,now=p
  /* 停住不動時 GPS 會在附近飄來飄去:速度很慢且飄移在誤差範圍內 → 視為原地不動,不讓位置/距離跳動 */
  {const F=N.fix,sp=p.spd;if(F&&(sp==null||sp<.9)&&dist(F.lat,F.lon,p.lat,p.lon)<Math.max(12,Math.min(35,(p.acc||10)*.9))){p=Object.assign({},p,{lat:F.lat,lon:F.lon,spd:0,brg:F.brg!=null?F.brg:p.brg})}else N.fix={lat:p.lat,lon:p.lon,brg:p.brg}}
  const win=N.offN?[0,r.pts.length]:[N.lastIdx-3,N.lastIdx+250];let s=snap(r.pts,r.cum,p.lat,p.lon,win[0],win[1]);if(s.d>60&&!N.offN)s=snap(r.pts,r.cum,p.lat,p.lon);
- const thr=mode==='walk'?Math.min(S.off,30):+S.off||40;
+ const thr0=mode==='walk'?Math.min(S.off,30):+S.off||40,thr=mode!=='walk'&&(p.acc||99)<=12?Math.min(thr0,28):thr0;/* v2.4.6 GPS 準的時候偏離門檻縮小,換了路比較快發現 */
  /* 走在路線旁邊另一條路(例如平行的小路、側車道)時:GPS 夠準、離另一條路比離路線近很多 → 當作偏離,圖示畫在那條路上,幾秒後重新規劃 */
  let side=null;if((p.acc||99)<=12&&s.d>=9&&s.d<=thr&&(p.spd||0)>2.5){try{const nr=OSMC.near(p.lat,p.lon,30);if(nr&&nr.d+6<s.d){const q=pointAt(r.pts,r.cum,s.along).p;const qr=OSMC.near(q[0],q[1],10);let onRoute=!qr;/* 路線這段的道路不在資料裡就不判斷 */for(let i=0;i<nr.g.length-1&&!onRoute;i++){const a=nr.g[i],b=nr.g[i+1],m=[(a[0]+b[0])/2,(a[1]+b[1])/2];if(dist(q[0],q[1],m[0],m[1])<Math.max(8,dist(a[0],a[1],b[0],b[1])/2+6))onRoute=true}
    if(!onRoute&&(p.brg==null||Math.abs(((nr.brg-p.brg)+540)%360-180)<35||Math.abs(((nr.brg-p.brg)+540)%360-180)>145))side=nr}}catch(e){}}
+ /* v2.4.6 已經騎上另一條方向不同的路(在路口轉進別條路):GPS 夠準、離那條路比離路線近,就算還沒離開路線 28 公尺也先算偏離 */
+ if(!side&&s.d>=12&&s.d<=thr&&(p.acc||99)<=15&&(p.spd||0)>3){try{const nr=OSMC.near(p.lat,p.lon,10);if(nr&&nr.d+5<s.d){const q0=pointAt(r.pts,r.cum,Math.max(0,s.along-10)).p,q1=pointAt(r.pts,r.cum,s.along+10).p,rb=bearing(q0[0],q0[1],q1[0],q1[1]);let df=Math.abs(((nr.brg-rb)%360+540)%360-180);df=Math.min(df,180-df);if(df>35)side=nr}}catch(e){}}
  N.side=side?(N.side||0)+1:0;
  /* v2.2.8 GPS 突然跳很遠(剛開始定位、訊號不穩):不算偏離 */
  const jump=!!(N.lpJ&&now-N.lpJ.t<8000&&dist(N.lpJ.lat,N.lpJ.lon,p.lat,p.lon)>Math.max(120,(p.spd||15)*((now-N.lpJ.t)/1000)*2.5+60));N.lpJ={lat:p.lat,lon:p.lon,t:now};
@@ -2605,7 +2612,7 @@ function onNavLoc(p){if(!N.on)return;N.pos=p;let r=N.route;const rec=N.rec,now=p
  /* v2.4.1 換回原本路線後,後面(抵達、中途點)都要用換過的路線判斷:以前還拿重新規劃的短路線總長去比原本路線的進度,人還沒到就判斷「已抵達」 */if(backOrig){r=N.route;s=snap(r.pts,r.cum,p.lat,p.lon)}
  /* v2.3.8 騎進小路捷徑(巷子、站前聯絡道):人在圖資上的道路上、離路線不遠,而且越來越接近前面的路線 → 先不判斷偏離,等接回路線 */
  let hold=false;if((s.d>thr||N.side>=2)&&!jump&&!backOrig&&s.d<170&&(p.spd||0)>1&&(p.acc||99)<=30){try{const rd=OSMC.near(p.lat,p.lon,15);if(rd){let ah=1e9;const a0=N.along+10;for(let d=a0;d<=Math.min(r.cum[r.cum.length-1],a0+450);d+=10){const q=pointAt(r.pts,r.cum,d).p;ah=Math.min(ah,dist(p.lat,p.lon,q[0],q[1]))}
-   if(!N.sc)N.sc={t0:now,d:ah};if(now-N.sc.t0<45000&&ah<=N.sc.d+60&&ah<150){hold=true;N.sc.d=Math.min(N.sc.d,ah);if(!N.sc.b){N.sc.b=1;banner('↪ 走小路捷徑中,接回路線後繼續導航',3500)}}}}catch(e){}}if(!hold&&s.d<=thr)N.sc=null;
+   if(!N.sc)N.sc={t0:now,d:ah};/* v2.4.6 只有巷弄、服務道路、白名單街道這類小路才等比較久;一般道路(另一條大路)最多等 10 秒,很快就重新規劃 */const minor=/^(service|living_street|track|pedestrian|footway|unclassified)$/.test(rd.t.highway||'')||!!rd.t.pedok||!rd.t.name;if(now-N.sc.t0<(minor?45000:10000)&&ah<=N.sc.d+(minor?40:10)&&ah<(minor?150:60)){hold=true;N.sc.d=Math.min(N.sc.d,ah);if(!N.sc.b){N.sc.b=1;banner('↪ 走小路捷徑中,接回路線後繼續導航',3500)}}}}catch(e){}}if(!hold&&s.d<=thr)N.sc=null;
  if(backOrig){}else if(jump&&s.d>thr){}else if(hold){}else
  if((s.d>thr&&(p.acc||0)<Math.max(60,thr*1.5))||N.side>=2){N.offN++}else{N.offN=0;const back=(p.spd||0)>1.5?6:30;if(s.along>=N.along-back&&s.along>=N.along-30){N.along=Math.max(s.along,(p.spd||0)>1.5?N.along:s.along);N.lastIdx=r.cum.findIndex((c,i)=>i>=s.i-1&&r.cum[i+1]>N.along);if(N.lastIdx<0)N.lastIdx=s.i}turnPass(p,r);if(r===N.orig)N.origAl=N.along}
  const on=s.d<thr&&!N.side,pos=side?side.p:on?pointAt(r.pts,r.cum,N.along).p:[p.lat,p.lon];
@@ -2801,6 +2808,7 @@ async function laneOSM(r){const ms=r.mans.filter(m=>![1,4,5,6].includes(m.type))
  const q=ms.map(m=>{const a=pointAt(r.pts,r.cum,r.cum[Math.min(m.idx,r.cum.length-1)]-25).p;const t=r.pts[Math.min(m.idx,r.pts.length-1)];return`way(around:18,${a[0].toFixed(5)},${a[1].toFixed(5)})[highway][highway!~"footway|path|cycleway|steps|service"];way(around:85,${t[0].toFixed(5)},${t[1].toFixed(5)})[highway~"^(motorway|trunk|primary|secondary|tertiary|unclassified|residential|living_street|motorway_link|trunk_link|primary_link|secondary_link|tertiary_link|service)$"];`}).join('');
  try{let el=null;try{const D=await OSMC.for(r);const pts=ms.map(m=>r.pts[Math.min(m.idx,r.pts.length-1)]);el=D.ways.map(w=>({id:w.id,tags:w.t,geometry:w.g.map(([lat,lon])=>({lat,lon}))})).filter(w=>w.tags.highway&&w.geometry.some(g=>pts.some(t=>Math.abs(g.lat-t[0])<.0015&&Math.abs(g.lon-t[1])<.0016&&dist(g.lat,g.lon,t[0],t[1])<120)));if(D.miss&&!el.length)el=null}catch(e){}
   if(!el)el=await overpass(`[out:json][timeout:25];(${q});out tags geom 600;`,0);
+  {const SV=svWays(r),ids=new Set(el.map(w=>w.id));SV.forEach(w=>{if(!ids.has(w.id))el.push({id:w.id,tags:w.t,geometry:w.g.map(([lat,lon])=>({lat,lon}))})})}
   ms.forEach(m=>{const t=r.pts[Math.min(m.idx,r.pts.length-1)];m.jx=el.filter(w=>w.geometry&&w.geometry.some(g=>dist(g.lat,g.lon,t[0],t[1])<110)).map(w=>({id:w.id,g:w.geometry.map(x=>[x.lat,x.lon]),t:{highway:w.tags.highway,lanes:w.tags.lanes,oneway:w.tags.oneway,name:w.tags.name}}))});
   /* 用 OpenStreetMap 的中文路名取代(路線服務有時給英文) */
   ms.forEach(m=>{const at=r.cum[Math.min(m.idx,r.cum.length-1)];/* 用「實際行駛的那條路」的名稱(平行的高架/平面道路不會被誤認) */if(RM&&(!m.st||!HAN.test(m.st))){const w=RM.at(at+25)||RM.at(at+50),nm=w&&rmName(w.t);if(nm){m.st=nm;m.ins=zhIns(m);return}}
@@ -3016,6 +3024,13 @@ function jxLaneOff(r,m,G){const left=TURN_T.left.includes(m.type),right=TURN_T.r
 /* 這一側的車道數:OpenStreetMap 有標就用標的,沒標就依道路等級推估(主要、次要幹道約 2 線) */
 function laneN(m,w){if(m.road&&m.road.n)return m.road.n;const t=(w&&w.t)||(m.road?{highway:m.road.hw,oneway:m.road.ow?'yes':'no'}:null);if(!t)return 0;const ow=t.oneway==='yes';
  if(+t.lanes>0)return ow?+t.lanes:Math.max(1,Math.floor(+t.lanes/2));const rw=RW[t.highway]||0;return rw>=11?2:1}
+/* v2.4.6 路口放大圖的路線貼到「實際行駛那條路」的中心線上(路線和圖資差幾公尺時,箭頭不會畫在路面外的草地上);路口中心 10 公尺內照原樣(轉彎形狀) */
+function jxSnapRoad(r,m,G,L){if(!L||L.length<2||!m.jx||!m.jx.length)return L;const JW=m.jx.map(w=>({id:w.id,L:w.g.map(([la,lo])=>G.loc(la,lo))})),RMv=r._rmv;
+ const D=[L[0]];for(let i=1;i<L.length;i++){const a=L[i-1],b=L[i],l=Math.hypot(b[0]-a[0],b[1]-a[1]),n=Math.floor(l/3);for(let k=1;k<n;k++)D.push([a[0]+(b[0]-a[0])*k/n,a[1]+(b[1]-a[1])*k/n]);D.push(b)}
+ let acc=0;const sM=(()=>{let bd=1e9,s0=0,c=0;for(let k=0;k<D.length-1;k++){const A=D[k],B=D[k+1],dx=B[0]-A[0],dy=B[1]-A[1],L2=dx*dx+dy*dy||1e-9,t=Math.max(0,Math.min(1,-(A[0]*dx+A[1]*dy)/L2)),d=Math.hypot(A[0]+dx*t,A[1]+dy*t);if(d<bd){bd=d;s0=c+Math.sqrt(L2)*t}c+=Math.sqrt(L2)}return s0})();
+ return D.map((q,k)=>{if(k)acc+=Math.hypot(q[0]-D[k-1][0],q[1]-D[k-1][1]);if(Math.hypot(q[0],q[1])<10)return q;let C=JW;if(RMv&&RMv.segAt){const gg=RMv.segAt(G.at+(acc-sM)),o=gg&&JW.find(x=>x.id===gg.w.id);if(o)C=[o]}
+  let bd=1e9,bp=null;C.forEach(o=>{for(let i=0;i<o.L.length-1;i++){const a=o.L[i],b=o.L[i+1],dx=b[0]-a[0],dy=b[1]-a[1],L2=dx*dx+dy*dy||1e-9,t=Math.max(0,Math.min(1,((q[0]-a[0])*dx+(q[1]-a[1])*dy)/L2)),px=a[0]+dx*t,py=a[1]+dy*t,d=Math.hypot(q[0]-px,q[1]-py);if(d<bd){bd=d;bp=[px,py]}}});
+  return bp&&bd<(C.length===1?10:6)?bp:q})}
 function jxSvg(r,m,photo){const G=jxGeom(r,m),W=640,H=300;const cam=photo?{W,back:30,h:2.4,F:380,hz:118}:{W,back:48,h:20,F:330,hz:58};const pr=jxProj(cam),pp=P2(pr);
  const fmin=-cam.back+(photo?6:5),fmax=150;let g='';
  if(!photo){g+=`<defs><linearGradient id="jsky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9cc6e8"/><stop offset="1" stop-color="#e6f0f5"/></linearGradient><linearGradient id="jgnd" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b9c3a1"/><stop offset="1" stop-color="#8fa274"/></linearGradient></defs>
@@ -3039,7 +3054,7 @@ function jxSvg(r,m,photo){const G=jxGeom(r,m),W=640,H=300;const cam=photo?{W,bac
    if(cur&&cur.i===i){const q=pr([x,f0+3]);if(q)g+=`<text x="${q[0].toFixed(1)}" y="${q[1].toFixed(1)}" font-size="22" text-anchor="middle">📍</text>`}})}}
  /* 行駛路線大箭頭 */
  /* 箭頭畫在該走的車道上:左轉走最內側(左邊)車道、右轉走最外側車道;雙向道路一律在自己這一側(右半邊) */
- m._two=null;const lo=jxLaneOff(r,m,G),rp=[];/* v2.0.4 轉彎用「直角 + 小圓弧」的路線畫(不直接用原始折線);v2.1.0 先依車道整段偏移(轉彎前 a、轉彎後 b,轉角用斜接),再修成小圓弧 */{const i0=Math.max(0,r.cum.findIndex(c=>c>=G.at-90)-1),i1=(r.cum.findIndex(c=>c>G.at+110)+1)||r.pts.length,RL0=r.pts.slice(i0,i1).map(q=>G.loc(q[0],q[1])),RC0=[0];for(let k=1;k<RL0.length;k++)RC0.push(RC0[k-1]+Math.hypot(RL0[k][0]-RL0[k-1][0],RL0[k][1]-RL0[k-1][1]));
+ m._two=null;const lo=jxLaneOff(r,m,G),rp=[];/* v2.0.4 轉彎用「直角 + 小圓弧」的路線畫(不直接用原始折線);v2.1.0 先依車道整段偏移(轉彎前 a、轉彎後 b,轉角用斜接),再修成小圓弧 */{const i0=Math.max(0,r.cum.findIndex(c=>c>=G.at-90)-1),i1=(r.cum.findIndex(c=>c>G.at+110)+1)||r.pts.length,RL0=jxSnapRoad(r,m,G,uturnNear(r,G.at-90,G.at+110)?r.pts.slice(i0,i1).map(q=>G.loc(q[0],q[1])):despikeL(r.pts.slice(i0,i1).map(q=>G.loc(q[0],q[1])),40)),RC0=[0];for(let k=1;k<RL0.length;k++)RC0.push(RC0[k-1]+Math.hypot(RL0[k][0]-RL0[k-1][0],RL0[k][1]-RL0[k-1][1]));
   let sM0=0;{let bd=1e9;for(let k=0;k<RL0.length-1;k++){const A=RL0[k],B=RL0[k+1],dx=B[0]-A[0],dy=B[1]-A[1],L2=dx*dx+dy*dy||1e-9,t=Math.max(0,Math.min(1,-(A[0]*dx+A[1]*dy)/L2)),d=Math.hypot(A[0]+dx*t,A[1]+dy*t);if(d<bd){bd=d;sM0=RC0[k]+Math.sqrt(L2)*t}}}
   const RL=smoothLocal(deLoop(offSegs(RL0,k=>(RC0[k]+RC0[k+1])/2<sM0?lo.a:lo.b)),3.5),RC=[0];for(let k=1;k<RL.length;k++)RC.push(RC[k-1]+Math.hypot(RL[k][0]-RL[k-1][0],RL[k][1]-RL[k-1][1]));
   let sM=0,bd=1e9;for(let k=0;k<RL.length-1;k++){const A=RL[k],B=RL[k+1],dx=B[0]-A[0],dy=B[1]-A[1],L2=dx*dx+dy*dy||1e-9,t=Math.max(0,Math.min(1,-(A[0]*dx+A[1]*dy)/L2)),d=Math.hypot(A[0]+dx*t,A[1]+dy*t);if(d<bd){bd=d;sM=RC[k]+Math.sqrt(L2)*t}}
@@ -3239,14 +3254,14 @@ function navNativeEnd(){if(!IS_APP)return;try{NB.navInfo('')}catch(e){}try{NB.sh
 const MFAM=m=>['car','truck','trailer'].includes(m)?'car':['scooter','heavy'].includes(m)?'moto':m;
 /* 走過的路線:直接用回放整理好的「實際走過的道路」(和回顧看到的一樣,例如走東民五街),再請路線服務沿著這條路產生轉彎提示 */
 /* 常走路線的結果存在手機裡(依紀錄、交通工具、起訖點),下次規劃直接拿出來,不必每次重新對路 */
-const PTV=4;
+const PTV=5;
 async function pastTrip(rec,o,d,md){md=md||mode;const ck='pt_'+rec.id+'_'+md;{const C=kvGet(ck);if(C&&C.v===PTV&&!tripBad(C.trip)&&C.fx===(rec.drvFix||0)&&Date.now()-C.t<21*864e5&&dist(C.o[0],C.o[1],o.lat,o.lon)<120&&dist(C.d[0],C.d[1],d.lat,d.lon)<120)return JSON.parse(JSON.stringify(C.trip))}
  const t0=await pastTrip0(rec,o,d,md);const t=t0&&!tripBad(t0)?t0:null;if(t)try{kvSet(ck,{v:PTV,fx:rec.drvFix||0,t:Date.now(),o:[o.lat,o.lon],d:[d.lat,d.lon],trip:t})}catch(e){}return t}
 async function pastTrip0(rec,o,d,md){const mode=md;let path=null;
  if(!rec.imp&&rec.plan&&rec.trk&&rec.drvFix!==14&&typeof rpNavRepair==='function')await rpNavRepair(rec);
  if(!rec.imp&&rec.drv)path=decPoly(rec.drv,5);else if(rec.imp&&rec.plan)path=decPoly(rec.plan,5);if(!path||path.length<2)return null;
  let i0=0,i1=path.length-1,a=1e9,b=1e9;path.forEach((x,i)=>{const p=dist(o.lat,o.lon,x[0],x[1]);if(p<a){a=p;i0=i}const q=dist(d.lat,d.lon,x[0],x[1]);if(q<b){b=q;i1=i}});
- if(a>150||b>200||i1-i0<1)return null;return traceSeg(path.slice(i0,i1+1),mode)}
+ if(a>150||b>200||i1-i0<1)return null;/* v2.4.6 舊行跡裡的尖刺、小圈先去掉,常用路線才不會帶著「繞進巷口又出來」的轉彎 */let sg=path.slice(i0,i1+1);try{sg=despikeLL(loopCut(sg),40)}catch(e){}return traceSeg(sg,mode)}
 /* 把一串走過的點對到道路上(機車用機車規則),得到可以導航的路線 */
 async function traceSeg(sg,mode){
  /* 加密成約每 25 公尺一點,對路比較穩 */const dense=[sg[0]];for(let i=1;i<sg.length;i++){const p=sg[i-1],q=sg[i],L=dist(p[0],p[1],q[0],q[1]),n=Math.floor(L/25);for(let k=1;k<=n;k++)dense.push([p[0]+(q[0]-p[0])*k/(n+1),p[1]+(q[1]-p[1])*k/(n+1)]);dense.push(q)}
@@ -3599,13 +3614,14 @@ const spUp=t=>(t.bridge&&t.bridge!=='no')||(+t.layer||0)>0;
 const spDown=t=>(t.tunnel&&t.tunnel!=='no')||(+t.layer||0)<0||t.covered==='yes';
 /* 道路的立體層級:橋 ≥1(layer=2 比 layer=1 高)、地下道 <0、平面 0 */
 const spLay=t=>spUp(t)?Math.max(1,+t.layer||1):spDown(t)?Math.min(-1,+t.layer||-1):0;
+function svWays(r){if(r._svw)return r._svw;const out=[];try{const seen=new Set();OSMC.cellsFor(r.pts,r.cum).forEach(k=>{const c=OSMC.svGet&&OSMC.svGet(k);if(c)c.w.forEach(w=>{if(seen.has(w[0]))return;seen.add(w[0]);out.push({id:w[0],g:decPoly(w[2],6),t:{...w[1],svx:1,highway:w[1].pedok?'residential':w[1].highway}})})})}catch(e){}r._svw=out;return out}
 async function spLoad(r){if(!r)return;r.sps=[];const MD=r.mode||mode;if(S.spOn===0)return;/* 火車、高鐵、捷運不顯示道路的立體示意圖(陸橋、地下道是給汽機車的) */if(['train','hsr','mrt'].includes(MD)||(r.tr&&r.tr.kind&&r.tr.kind!=='bus'))return;let base=dpS(r.pts,8,350);if(r.len>90000)base=base.slice(0,Math.ceil(base.length*90000/r.len));
  const ll=base.map(p=>p[0].toFixed(5)+','+p[1].toFixed(5)).join(',');
  let el,LXN=[];try{const D=await OSMC.for(r);LXN=(D.nodes||[]).filter(n=>n[3]==='x');el=D.ways.map(w=>({id:w.id,tags:w.t,geometry:w.g.map(([lat,lon])=>({lat,lon}))}))}catch(e){return}
  const RM=await Promise.race([rideMatch(r),sleep(9000).then(()=>null)]);
  if(!r.rp&&N.route!==r&&P.routes.indexOf(r)<0)return;
  const IX=routeIdx(r),sn=(la,lo)=>IX.snap(la,lo);const lat0=Math.min(...r.pts.map(p=>p[0]))-.002,lat1=Math.max(...r.pts.map(p=>p[0]))+.002,lon0=Math.min(...r.pts.map(p=>p[1]))-.002,lon1=Math.max(...r.pts.map(p=>p[1]))+.002;
- const W=el.filter(w=>w.geometry&&w.geometry.length>1).map(w=>({id:w.id,g:w.geometry.map(x=>[x.lat,x.lon]),t:w.tags||{}})).filter(w=>{const big=w.t.railway||/^(motorway|trunk)/.test(w.t.highway||'');if(big)return w.g.some(q=>q[0]>lat0&&q[0]<lat1&&q[1]>lon0&&q[1]<lon1);return w.g.some(q=>sn(q[0],q[1]).d<60)});r.spW=W;
+ const W=el.filter(w=>w.geometry&&w.geometry.length>1).map(w=>({id:w.id,g:w.geometry.map(x=>[x.lat,x.lon]),t:w.tags||{}})).filter(w=>{const big=w.t.railway||/^(motorway|trunk)/.test(w.t.highway||'');if(big)return w.g.some(q=>q[0]>lat0&&q[0]<lat1&&q[1]>lon0&&q[1]<lon1);return w.g.some(q=>sn(q[0],q[1]).d<60)});/* v2.4.6 路線走的巷弄、站前聯絡道、白名單街道(道路資料的 sv 欄位)也畫進示意圖,箭頭不會畫在沒有路的草地上 */{const ids=new Set(W.map(w=>w.id));svWays(r).forEach(w=>{if(!ids.has(w.id)&&w.g.some(q=>sn(q[0],q[1]).d<60)){ids.add(w.id);W.push(w)}})}r.spW=W;
  const _u=0,out=[],add=o=>{if(out.some(x=>x.type===o.type&&Math.abs(x.along-o.along)<180))return;out.push(o)};
  /* 每條路和路線的關係:路線有沒有走在這條路上 */
  W.forEach(w=>{const ss=w.g.map(q=>sn(q[0],q[1]));w.on=ss.filter(x=>x.d<9);w.near=ss.filter(x=>x.d<30);w.ss=ss;
@@ -3646,12 +3662,12 @@ async function spLoad(r){if(!r)return;r.sps=[];const MD=r.mode||mode;if(S.spOn==
   if(/^(motorway|trunk)/.test(hw)&&spUp(t)&&!w.ride){for(let i=0;i<w.g.length-1;i++){const al=xAlong(w.g[i],w.g[i+1]);if(al!=null){if(realOver(w,al)&&spLay(t)>rLay(al))add({type:'cross',along:al,w});break}}}
   w.rail=RL.some(rw=>spUp(rw.t)&&rw.g.some(q=>w.g.some(z=>dist(q[0],q[1],z[0],z[1])<25)));
   /* ③ 禁止駛入的入口/道路就在路線旁 */
-  if(spForb(t,MD)&&!w.ride&&w.near.length&&['scooter','heavy','bike','car','truck','trailer'].includes(MD)){/* 真的入口:禁行道路的節點接在路線上(只是在旁邊平行的高架/高速公路不算) */const cl=w.ss.filter((x,i)=>x.d<(RM?4:22)&&(!RM||i===0||i===w.ss.length-1||!(spUp(w.t)||spDown(w.t))));if(cl.length)add({type:'ramp',along:Math.min(...cl.map(x=>x.along)),w})}});
+  if(!t.svx&&spForb(t,MD)&&!w.ride&&w.near.length&&['scooter','heavy','bike','car','truck','trailer'].includes(MD)){/* 真的入口:禁行道路的節點接在路線上(只是在旁邊平行的高架/高速公路不算) */const cl=w.ss.filter((x,i)=>x.d<(RM?4:22)&&(!RM||i===0||i===w.ss.length-1||!(spUp(w.t)||spDown(w.t))));if(cl.length)add({type:'ramp',along:Math.min(...cl.map(x=>x.along)),w})}});
  /* 高速公路旁的平面小路(機車、腳踏車):路線和國道平行很長一段 */
  if(['scooter','bike','heavy'].includes(MD))W.filter(w=>/^motorway$/.test(w.t.highway)&&!w.ride&&w.near.length>=3).forEach(w=>{const al=w.near.map(x=>x.along),sp=Math.max(...al)-Math.min(...al);if(sp>150)add({type:'side',along:Math.min(...al),end:Math.max(...al),w})});
  /* ④ 複雜路口 */
  r.mans.forEach((m,k)=>{if([1,4,5,6,7,8,22].includes(m.type))return;const P0=r.pts[Math.min(m.idx,r.pts.length-1)],at=r.cum[Math.min(m.idx,r.cum.length-1)];
-  const arms=W.filter(w=>w.t.highway&&w.g.some(q=>dist(q[0],q[1],P0[0],P0[1])<28));const names=new Set(arms.map(w=>w.t.name||w.id));const nx=r.mans[k+1],close=nx&&r.cum[Math.min(nx.idx,r.cum.length-1)]-at<70&&![4,5,6,7,8,22].includes(nx.type);
+  const arms=W.filter(w=>w.t.highway&&!w.t.svx&&w.g.some(q=>dist(q[0],q[1],P0[0],P0[1])<28));const names=new Set(arms.map(w=>w.t.name||w.id));const nx=r.mans[k+1],close=nx&&r.cum[Math.min(nx.idx,r.cum.length-1)]-at<70&&![4,5,6,7,8,22].includes(nx.type);
   if(arms.length>=5||names.size>=4||m.type===26||close)add({type:'complex',along:at,m,arms:arms.length,close:!!close,end:at+(close?r.cum[Math.min(nx.idx,r.cum.length-1)]-at:0)})});
  /* 你自己就走在地下道裡:旁邊並排的(汽車/機車)地下道不另外提醒「走平面道路」 */for(let i=out.length-1;i>=0;i--){const o=out[i];if(o.type==='underSide'&&out.some(x=>x.type==='under'&&Math.abs(x.along-o.along)<80))out.splice(i,1)}
  {const st=out.filter(o=>['railUnder','railOver','under','underSide','cross'].includes(o.type));for(let i=out.length-1;i>=0;i--){const o=out[i];if(o.type!=='ramp')continue;const n=st.filter(x=>Math.abs(x.along-o.along)<160).sort((a,b)=>Math.abs(a.along-o.along)-Math.abs(b.along-o.along))[0];if(n){n.forb=1;n.fbName=o.w.t.name||'';n.pre=Math.max(0,n.along-o.along);out.splice(i,1)}}}
@@ -3705,6 +3721,11 @@ function spPaint(r,el,sp,al,st){const ahead=sp.along-al,inside=ahead<=0;
 setInterval(()=>{try{if(N.on&&SP.cur&&SP.key===SP.cur.sp.id&&SP.cur.el.classList.contains('on'))spPaint(SP.cur.r,SP.cur.el,SP.cur.sp,navAl(),SP)}catch(e){}},250);
 /* 本地座標折線:只拿掉路口內「兩邊都很短(<15 公尺)」的小折角(中央分隔島造成的左右鋸齒);
    一般路口的轉彎維持直角,彎曲道路照原本的形狀(圖資本身就是彎的) */
+/* v2.4.6 去掉路線上的「尖刺」(往前一小段又折回來,常見於用舊行跡做的常用路線、GPS 飄進巷口):本地座標 [x,y]
+   真正的迴轉(迴轉指示附近)不處理 */
+function despikeL(Q,maxL){if(!Q||Q.length<3)return Q;Q=Q.slice();maxL=maxL||40;for(let it=0;it<80;it++){let hit=-1;for(let k=1;k<Q.length-1;k++){const a=Q[k-1],b=Q[k],c=Q[k+1],ux=b[0]-a[0],uy=b[1]-a[1],vx=c[0]-b[0],vy=c[1]-b[1],l1=Math.hypot(ux,uy),l2=Math.hypot(vx,vy);if(l1<.3||l2<.3)continue;if((ux*vx+uy*vy)/(l1*l2)<-.7&&Math.min(l1,l2)<maxL){hit=k;break}}if(hit<0)break;Q.splice(hit,1)}return Q}
+function despikeLL(P,maxL){if(!P||P.length<3)return P;const o=P[0],kx=Math.cos(o[0]*R2)*111320,ky=110540,L=P.map(p=>[(p[1]-o[1])*kx,(p[0]-o[0])*ky,p]);const D=despikeL(L,maxL);return D.map(q=>q[2])}
+const uturnNear=(r,a0,a1)=>(r.mans||[]).some(m=>[12,13].includes(m.type)&&(x=>x>a0&&x<a1)(r.cum[Math.min(m.idx,r.cum.length-1)]));
 function smoothLocal(P,tol){if(!P||P.length<3)return P;const L=(a,b)=>Math.hypot(b[0]-a[0],b[1]-a[1]),hd=(a,b)=>Math.atan2(b[1]-a[1],b[0]-a[0]);
  /* v2.0.4 轉彎畫成「直角 + 小圓弧」:
     1. 路口內的小折線(分隔島、轉彎車道造成的多個短線段):用「進路口前的直線」和「出路口後的直線」求交點,換成一個轉角,
@@ -3852,7 +3873,7 @@ function spSvg(r,sp){const MD=sp.md||r.mode||mode;const W=640,H=300,at=sp.along;
     const P4=[p1,p2,p3,p4];if(P4.some(q=>q[1]<fmin))continue;g+=`<polygon points="${pp(P4,.03)}" fill="rgba(255,255,255,.7)"/>`}})});
  /* 藍色箭頭:在地下道裡就畫低一點,在高架上就畫高一點 */
  /* 路線在路口內常有中央分隔島造成的小鋸齒(先左、右、直走再左):畫箭頭前先拉直再圓滑,看起來就是一個順順的轉彎 */
- const RPL=smoothLocal(r.pts.slice(Math.max(0,r.cum.findIndex(c=>c>=at-80)-1),(r.cum.findIndex(c=>c>at+120)+1)||r.pts.length).map(q=>loc(q[0],q[1])),3.5),RPc=[0];for(let k=1;k<RPL.length;k++)RPc.push(RPc[k-1]+Math.hypot(RPL[k][0]-RPL[k-1][0],RPL[k][1]-RPL[k-1][1]));
+ const RPL0=r.pts.slice(Math.max(0,r.cum.findIndex(c=>c>=at-80)-1),(r.cum.findIndex(c=>c>at+120)+1)||r.pts.length).map(q=>loc(q[0],q[1])),RPL=smoothLocal(uturnNear(r,at-80,at+120)?RPL0:despikeL(RPL0,40),3.5),RPc=[0];for(let k=1;k<RPL.length;k++)RPc.push(RPc[k-1]+Math.hypot(RPL[k][0]-RPL[k-1][0],RPL[k][1]-RPL[k-1][1]));
  const meL=sp.me!=null?(()=>{const q=pointAt(r.pts,r.cum,Math.max(0,sp.me)).p;return loc(q[0],q[1])})():loc(...pointAt(r.pts,r.cum,at).p);let s00=0,bd0=1e9;for(let k=0;k<RPL.length-1;k++){const A=RPL[k],B=RPL[k+1],dx=B[0]-A[0],dy=B[1]-A[1],L2=dx*dx+dy*dy||1e-9,t=Math.max(0,Math.min(1,((meL[0]-A[0])*dx+(meL[1]-A[1])*dy)/L2)),dd=Math.hypot(A[0]+dx*t-meL[0],A[1]+dy*t-meL[1]);if(dd<bd0){bd0=dd;s00=RPc[k]+Math.sqrt(L2)*t}}
  const atL=sp.me!=null?s00+15:s00;
  const rp=[],rpA=[];for(let s0=atL-70;s0<=atL+110;s0+=3){if(s0<0||s0>RPc[RPc.length-1])continue;let k=1;while(k<RPc.length-1&&RPc[k]<s0)k++;const f=(s0-RPc[k-1])/((RPc[k]-RPc[k-1])||1),L=[RPL[k-1][0]+(RPL[k][0]-RPL[k-1][0])*f,RPL[k-1][1]+(RPL[k][1]-RPL[k-1][1])*f];let e=0;
@@ -3878,7 +3899,7 @@ function spSvg(r,sp){const MD=sp.md||r.mode||mode;const W=640,H=300,at=sp.along;
    const a=rp[Math.max(0,k-1)],b=rp[Math.min(rp.length-1,k+1)],dx=b[0]-a[0],dy=b[1]-a[1],l=Math.hypot(dx,dy)||1;
    /* v2.2.2 直接放在「實際行駛那條路」畫出來的路面上:投影到該道路中心線,再依車道往右偏移(路線本身和道路圖資差幾公尺時,不會畫在路面外或斜斜切過路口) */
    if(RMl){const gg=RMl.segAt(A),o=gg&&ways.find(x=>x.w.id===gg.w.id);if(o&&!o.rl&&o.L&&o.L.length>1){let bd=1e9,bp=null,bu=null;for(let i=0;i<o.L.length-1;i++){const P0=o.L[i],P1=o.L[i+1],ex=P1[0]-P0[0],ey=P1[1]-P0[1],L2=ex*ex+ey*ey;if(L2<1e-6)continue;const t=Math.max(0,Math.min(1,((q[0]-P0[0])*ex+(q[1]-P0[1])*ey)/L2)),px=P0[0]+ex*t,py=P0[1]+ey*t,d=Math.hypot(q[0]-px,q[1]-py);if(d<bd){bd=d;bp=[px,py];const ll=Math.sqrt(L2);bu=[ex/ll,ey/ll]}}
-    if(bp&&bd<25){let ux=bu[0],uy=bu[1];if(ux*dx+uy*dy<0){ux=-ux;uy=-uy}q[0]=bp[0]+uy*SM[k];q[1]=bp[1]-ux*SM[k];return}}}
+    if(bp&&bd<10){let ux=bu[0],uy=bu[1];if(ux*dx+uy*dy<0){ux=-ux;uy=-uy}q[0]=bp[0]+uy*SM[k];q[1]=bp[1]-ux*SM[k];return}}}
    q[0]+=dy/l*SM[k];q[1]-=dx/l*SM[k]});
   rp.forEach((q,k)=>{});SP.offAt=s=>{let bk=0,bd=1e9;rpA0.forEach((A,k)=>{const d=Math.abs(A-s);if(d<bd){bd=d;bk=k}});return SM[bk]||0};
   if(TS){/* 待轉格 */const nw=[-TS.w[1],TS.w[0]],c=TS.box,Q=[[1,1],[1,-1],[-1,-1],[-1,1]].map(([a,b])=>[c[0]+TS.w[0]*a*1.9+nw[0]*b*1.3,c[1]+TS.w[1]*a*1.9+nw[1]*b*1.3]);
@@ -3888,7 +3909,7 @@ function spSvg(r,sp){const MD=sp.md||r.mode||mode;const W=640,H=300,at=sp.along;
  if(RMl){const turnA=(r.mans||[]).filter(m=>![1,4,5,6].includes(m.type)).map(m=>r.cum[Math.min(m.idx,r.cum.length-1)]);
   rp.forEach((q,k)=>{const A=rpA0[k];if(turnA.some(a=>Math.abs(a-A)<14))return;const gg=RMl.segAt(A);if(!gg)return;const o=ways.find(x=>x.w.id===gg.w.id);if(!o||o.rl||!o.L||o.L.length<2)return;
    let bd=1e9,bp=null;for(let i=0;i<o.L.length-1;i++){const a=o.L[i],b=o.L[i+1],dx=b[0]-a[0],dy=b[1]-a[1],L2=dx*dx+dy*dy||1e-9,t=Math.max(0,Math.min(1,((q[0]-a[0])*dx+(q[1]-a[1])*dy)/L2)),px=a[0]+dx*t,py=a[1]+dy*t,d=Math.hypot(q[0]-px,q[1]-py);if(d<bd){bd=d;bp=[px,py]}}
-   const lim=Math.max(.5,o.wd/2-.7)+(MD==='walk'?2.5:0);if(bp&&bd>lim&&bd<40){const f=lim/bd;q[0]=bp[0]+(q[0]-bp[0])*f;q[1]=bp[1]+(q[1]-bp[1])*f}})}
+   const lim=Math.max(.5,o.wd/2-.7)+(MD==='walk'?2.5:0);if(bp&&bd>lim&&bd<lim+6){const f=lim/bd;q[0]=bp[0]+(q[0]-bp[0])*f;q[1]=bp[1]+(q[1]-bp[1])*f}})}
  SP.dbg={rp,rpA:rpA0,ways,turns:(r.mans||[]).filter(m=>![1,4,5,6].includes(m.type)).map(m=>r.cum[Math.min(m.idx,r.cum.length-1)])};
  /* 圓環:標出駛入、駛出的位置(最後才畫,不會被路名蓋住) */let RBL='';if(RMl){const segs=RMl.segs.filter(gg=>/roundabout|circular/.test(gg.w.t.junction||'')&&gg.b>at-80&&gg.a<at+150);if(segs.length){const a0=Math.min(...segs.map(x=>x.a)),a1=Math.max(...segs.map(x=>x.b));
    const PS=[];[[a0,'⬆ 駛入','#2e8b57',22],[a1,'↗ 駛出','#d9822b',-22]].forEach(([A,tx,col,dy])=>{const p0=pointAt(r.pts,r.cum,A).p,L0=loc(p0[0],p0[1]);if(L0[1]<fmin+5)return;const s2=pr(L0,1.5);if(!s2)return;let yy=s2[1]+dy;PS.forEach(q=>{if(Math.abs(q[0]-s2[0])<60&&Math.abs(q[1]-yy)<24)yy+=dy>0?24:-24});PS.push([s2[0],yy]);RBL+=`<g transform="translate(${s2[0].toFixed(0)},${yy.toFixed(0)})"><rect x="-26" y="-12" width="52" height="22" rx="11" fill="${col}" stroke="#fff" stroke-width="2"/><text y="4" text-anchor="middle" font-size="12" font-weight="900" fill="#fff">${tx}</text></g>`})}}
@@ -5990,7 +6011,8 @@ $('#fFpi').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)
  $('#fpiAll').onclick=()=>$$('#fpiBox .fpiDays input').forEach(x=>x.checked=true);$('#fpiNone').onclick=()=>$$('#fpiBox .fpiDays input').forEach(x=>x.checked=false);
  $('#fpiGo').onclick=()=>fpiRun($$('#fpiBox .fpiDays input').filter(x=>x.checked).map(x=>x.value),$('#fpiFav').checked)};
 /* 停留點偵測:100 公尺內待超過 4 分鐘就算停留 */
-function fpiStays(P,vis){const st=[];let i=0;const n=P.length;while(i<n){if(P[i][3]>50){i++;continue}let j=i+1;/* 誤差很大的點(網路定位亂跳)不算離開 */while(j<n&&(dist(P[i][1],P[i][2],P[j][1],P[j][2])<110||(P[j][3]>50&&j+1<n&&dist(P[i][1],P[i][2],P[j+1][1],P[j+1][2])<110)))j++;
+function fpiStays(P,vis){const st=[];let i=0;const n=P.length;while(i<n){if(P[i][3]>50){i++;continue}let j=i+1;/* 誤差很大的點(網路定位亂跳)不算離開 *//* v2.4.6 連續好幾筆網路定位亂跳(誤差 50 公尺以上):看下一筆準的點還在不在附近 */const nxG=j=>{let k=j;while(k<n&&P[k][3]>50&&k-j<12)k++;return k<n&&!(P[k][3]>50)?k:-1};
+  while(j<n&&(dist(P[i][1],P[i][2],P[j][1],P[j][2])<110||(P[j][3]>50&&(k=>k>0&&dist(P[i][1],P[i][2],P[k][1],P[k][2])<110)(nxG(j)))))j++;
   if(P[j-1][0]-P[i][0]>=4*60000){st.push([i,j-1]);i=j}else i++}
  /* v2.3.6 行跡記錄器記下的停留點(就算只停 1、2 分鐘,例如到車站接送人)也當成停留,前後各算一段移動 */
  (vis||[]).forEach(v=>{if(!v.e||v.e-v.t<60000||v.lat==null)return;
@@ -5999,8 +6021,12 @@ function fpiStays(P,vis){const st=[];let i=0;const n=P.length;while(i<n){if(P[i]
   let a=-1,b=-1;for(let k=0;k<n;k++){if(P[k][0]>=v.t-60000&&P[k][0]<=v.e+60000&&!(P[k][3]>50)&&dist(P[k][1],P[k][2],c[0],c[1])<(core.length?45:150)){if(a<0)a=k;b=k}}
   if(a<0||st.some(([x,y])=>!(b<x||a>y)))return;st.push([a,b])});st.sort((x,y)=>x[0]-y[0]);return st}
 function fpiTrips(P,vis){const st=fpiStays(P,vis),out=[];let prev=0,first=true;
- const push=(a,b)=>{let seg=P.slice(a,b+1);if(seg.length<4)return;const L=trkLen(seg),D=dist(seg[0][1],seg[0][2],seg[seg.length-1][1],seg[seg.length-1][2]);
-  /* 起訖很近:只有中途確實離開 400 公尺以上(出去繞一圈又回來)才算移動 */if(L<300)return;/* 停留很久、只是 GPS 慢慢飄(例如晚上在飯店)不算移動 */{const dt=(seg[seg.length-1][0]-seg[0][0])/1000;if(dt>1200&&L/dt<.5)return}if(D<200){const far=Math.max(...seg.map(x=>dist(seg[0][1],seg[0][2],x[1],x[2])));if(far<400||L<800)return;
+ const push=(a,b)=>{let seg=P.slice(a,b+1);if(seg.length<4)return;
+  /* v2.4.6 只用準的點判斷有沒有真的移動:網路定位亂跳(一下跳到幾百公尺外又跳回來)不算移動 */{const gd=seg.filter(x=>!(x[3]>50));if(gd.length<5)return;const fr=Math.max(...gd.map(x=>dist(gd[0][1],gd[0][2],x[1],x[2])));if(fr<150)return;
+   const gl=trkLen(gd),gt=(gd[gd.length-1][0]-gd[0][0])/1000;if(gt<90&&gl>gt*25)return}
+  const L=trkLen(seg),D=dist(seg[0][1],seg[0][2],seg[seg.length-1][1],seg[seg.length-1][2]);
+  /* 起訖很近:只有中途確實離開 400 公尺以上(出去繞一圈又回來)才算移動 */if(L<300)return;/* 停留很久、只是 GPS 慢慢飄(例如晚上在飯店)不算移動 */{const dt=(seg[seg.length-1][0]-seg[0][0])/1000;if(dt>1200&&L/dt<.5)return}const farA=Math.max(...seg.filter(x=>!(x[3]>50)).map(x=>dist(seg[0][1],seg[0][2],x[1],x[2])));/* v2.4.6 終點停在離出發點兩三百公尺的地方(例如回家前先停路口買早餐):去程比這段遠很多,也是「出去又回來」 */
+  if(D<200||(farA>1000&&D<farA*.25&&!push.inner)){const far=farA;if(D<200&&(far<400||L<800))return;
    /* 出去又回到原地(例如送人到車站、停不到 1 分鐘就回來):在中途停最久的地方(沒有就用最遠的地方)切成去、回兩段 */if(!push.inner){let bi=-1,bd=0;const G=seg.map((x,i)=>i).filter(i=>!(seg[i][3]>25));
     for(let u=0;u<G.length;u++){let w=u;while(w+1<G.length&&seg[G[w+1]][0]-seg[G[w]][0]<20000&&dist(seg[G[u]][1],seg[G[u]][2],seg[G[w+1]][1],seg[G[w+1]][2])<45)w++;const du=seg[G[w]][0]-seg[G[u]][0];if(du>=25000&&w-u>=3&&du>bd&&dist(seg[0][1],seg[0][2],seg[G[u]][1],seg[G[u]][2])>300){bd=du;bi=[G[u],G[w]]}}
     if(bi<0){let fi=0,fd=0;seg.forEach((x,i)=>{const d=dist(seg[0][1],seg[0][2],x[1],x[2]);if(d>fd){fd=d;fi=i}});bi=[fi,fi]}
@@ -6279,7 +6305,7 @@ setInterval(()=>navFavDraw(),1500);
    · 小改版:只更新 app/index.html → 手機下載新網頁存起來,下次開啟(或立即)套用,不用重裝
    · 大改版(要新的原生功能):minApk 提高 → 提示下載新的 APK
    · 安裝檔:每個版本一個 Release(app-v版本),可以選最新或舊版本下載到手機 */
-const APP_VER='2.4.5';
+const APP_VER='2.4.6';
 const UPD={repo:'IanLin1120/xingji-roaddata',raw:'https://raw.githubusercontent.com/IanLin1120/xingji-roaddata/main/app/',busy:0};
 function verGt(a,b){const x=String(a||0).split('.').map(Number),y=String(b||0).split('.').map(Number);for(let i=0;i<Math.max(x.length,y.length);i++){const d=(x[i]||0)-(y[i]||0);if(d)return d>0}return false}
 function apkInfo(){try{return IS_APP&&NB.appInfo?JSON.parse(NB.appInfo()):null}catch(e){return null}}
