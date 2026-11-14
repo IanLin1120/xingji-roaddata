@@ -1204,6 +1204,8 @@ body.navigating #fabLoc{display:grid!important}
 <!-- ⑤ 工具箱 -->
 <section class="view" id="v-set"><div class="scroll">
   <h2 class="pt">🧰 工具箱</h2>
+  <div class="card glass" id="fpSwCard"><h3>🚩 行跡記錄器</h3><p>背景自動記錄去過的地方與 GPS 軌跡,有月曆、地圖(和導航同一套 3D 地圖)、地區統計;可以選日期或時間範圍,直接匯入成「📅 紀錄」。</p>
+    <div class="acts"><button class="btn pri grow" id="bFpSw" style="justify-content:center">🚩 切換到行跡記錄器</button></div><p class="sub" id="fpSwInfo"></p></div>
   <div class="card glass"><h3>📤 匯出到「行跡記錄器」</h3>
     <p>把導航紀錄(起點、中途點、終點、到達時間、交通工具)轉成行跡記錄器的備份格式。在行跡記錄器 → 設定 → 資料備份 →「匯入備份」選這個檔案即可,會自動合併、不會覆蓋原本資料。</p>
     <div class="lab">從<input type="date" id="exA"></div><div class="lab">到<input type="date" id="exB"></div>
@@ -5975,6 +5977,7 @@ if(IS_APP&&!S.onb){setTimeout(async()=>{let st={};try{st=JSON.parse(NB.perm())}c
  const k=await dlg(`<h3>👋 歡迎使用行跡導航</h3><p class="sub">導航需要以下權限,資料只存在你的手機裡:</p><ul class="sub" style="padding-left:18px"><li>📍 位置(請選「精確」)</li><li>🔔 通知:背景導航時的常駐通知</li><li>🛰 背景位置「一律允許」與 🔋 不受省電限制:可稍後在「🧰 工具箱 → 權限」開啟</li></ul><div class="acts" style="justify-content:flex-end"><button class="btn" data-x="0">稍後</button><button class="btn pri" data-x="1">開始授權</button></div>`);
  S.onb=1;saveS();if(k){try{NB.requestLocation()}catch(e){}setTimeout(()=>{try{NB.requestNotification()}catch(e){}},4000)}},1200)}
 if(location.hash.startsWith('#share='))importGmaps(decodeURIComponent(location.hash.slice(7)));
+else if(location.hash==='#fpimp'||location.hash==='#set'){const h=location.hash;try{history.replaceState(null,'',location.pathname)}catch(e){}setTimeout(()=>{show('set');if(h==='#fpimp')fpiFromRecorder()},600)}
 
 /* ---------- Google 金鑰測試:分別測 Places API (New) 與 Street View,錯誤翻成中文並告訴你怎麼修 ---------- */
 function gErrHint(msg,status){const m=String(msg||'')+' '+String(status||'');
@@ -6004,6 +6007,8 @@ const FPI={j:null,busy:false};
 const FP2NV={scooter:'scooter',car:'car',bike:'bike',walk:'walk',bus:'bus',train:'train',mrt:'mrt',hsr:'hsr'};
 function fpiDays(j){const set=new Set(Object.keys(j.trk||{}));(j.v||[]).forEach(v=>set.add(dk(v.t)));return[...set].sort()}
 $('#fFpi').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;let j;try{j=JSON.parse(await f.text());if(!j.v&&!j.trk)throw 0}catch(x){return toast('這不是行跡記錄器的檔案')}
+ fpiShow(j,f.name)};
+function fpiShow(j,fname){const f={name:fname};
  j.p=j.p||{};j.v=j.v||[];j.trk=j.trk||{};j.acts=j.acts||{};j.trips=j.trips||{};FPI.j=j;const days=fpiDays(j);
  const has=d=>DB.recs.some(r=>r.imp&&dk(r.t0)===d);
  $('#fpiBox').innerHTML=`<p class="sub">📄 ${esc(f.name)}<br>${days.length} 天 · ${j.v.length} 個停留點 · GPS 軌跡 ${Object.values(j.trk).reduce((a,b)=>a+b.length,0)} 點${!Object.keys(j.trk).length?'<br>⚠ 檔案沒有 GPS 軌跡(舊版備份),只能依停留點推算路線;請用新版行跡記錄器「匯出紀錄」會更準確':''}</p>
@@ -6170,6 +6175,15 @@ async function fpiRoute(ll,m,maxN=20){if(!ll||ll.length<2)return null;const mm=M
 /* 比對結果中間斷掉(兩點距離太遠會被畫成直線)的地方,用路線規劃補上真正的道路 */
 async function fpiGapFill(P,m,th){if(!P||P.length<2)return P;const out=[P[0]];let n=0;th=th||250;
  for(let i=1;i<P.length;i++){const a=P[i-1],b=P[i],d=dist(a[0],a[1],b[0],b[1]);if(d>th&&n<8){n++;const rr=await fpiRoute([a,b],m);if(rr&&rr.len<(th<250?d*1.8+300:d*4+3000)){out.push(...rr.pts.slice(1,-1))}}out.push(b)}return out}
+/* v2.5.0 行跡記錄器頁選好日期 / 時間範圍,按「匯入到行跡導航」:直接推算路線加入紀錄 */
+function fpOk(){try{return IS_APP&&typeof window.Android==='object'&&!!window.Android&&typeof window.Android.status==='function'}catch(e){return false}}
+function fpSwUI(){const el=$('#fpSwInfo');if(!el)return;el.innerHTML=!IS_APP?'行跡記錄器需要 Android App(背景定位)。':fpOk()?'記錄器的資料和導航紀錄分開存放;在記錄器頁按左上角「🧭 導航」或返回鍵就回到這裡。':'<span class="no">目前安裝的 App 還沒有行跡記錄器</span>:請到下面「⬆ App 更新」下載安裝 v2.5.0 以上的安裝檔(覆蓋安裝,資料會保留)。'}
+$('#bFpSw').onclick=()=>{if(!IS_APP)return toast('行跡記錄器只能在 Android App 裡使用');if(!fpOk())return toast('要先安裝 v2.5.0 以上的安裝檔才有行跡記錄器',5000);if(N.on)return toast('導航中不能切換,請先結束導航');try{flush()}catch(e){}location.href='fp.html'};
+setTimeout(fpSwUI,0);
+async function fpiFromRecorder(){const j=kvGet('fpimp');kvSet('fpimp',null);if(!j||(!j.v&&!j.trk))return;
+ show('set');const card=$('#fpiCard');fpiShow(j,'行跡記錄器'+(j.range?`(${j.range[0]===j.range[1]?j.range[0]:j.range[0]+' ~ '+j.range[1]})`:''));
+ setTimeout(()=>{try{card.scrollIntoView({behavior:'smooth',block:'start'})}catch(e){}},300);
+ const days=fpiDays(j);if(!days.length)return toast('這段時間沒有紀錄');await fpiRun(days,false)}
 async function fpiRun(days,addFav){if(FPI.busy)return;const j=FPI.j;if(!j||!days.length)return toast('請先勾選日期');FPI.busy=true;const log=t=>{$('#fpiLog').innerHTML=t};$('#fpiGo').disabled=true;
  let nAdd=0,nSkip=0,nFail=0,firstDay=null;const add=[];
  try{for(const day of days){log(`⏳ ${day} 分析中…`);let trips=[];const P=(j.trk[day]||[]).filter(x=>x.length>=3&&(x[3]==null||x[3]<=120)).sort((a,b)=>a[0]-b[0]);
@@ -6336,7 +6350,7 @@ setInterval(()=>navFavDraw(),1500);
    · 小改版:只更新 app/index.html → 手機下載新網頁存起來,下次開啟(或立即)套用,不用重裝
    · 大改版(要新的原生功能):minApk 提高 → 提示下載新的 APK
    · 安裝檔:每個版本一個 Release(app-v版本),可以選最新或舊版本下載到手機 */
-const APP_VER='2.4.8';
+const APP_VER='2.5.0';
 const UPD={repo:'IanLin1120/xingji-roaddata',raw:'https://raw.githubusercontent.com/IanLin1120/xingji-roaddata/main/app/',busy:0};
 function verGt(a,b){const x=String(a||0).split('.').map(Number),y=String(b||0).split('.').map(Number);for(let i=0;i<Math.max(x.length,y.length);i++){const d=(x[i]||0)-(y[i]||0);if(d)return d>0}return false}
 function apkInfo(){try{return IS_APP&&NB.appInfo?JSON.parse(NB.appInfo()):null}catch(e){return null}}
@@ -6345,10 +6359,13 @@ function updInfoUI(msg){const el=$('#updInfo');if(!el)return;const ai=apkInfo(),
   (v&&v.app?`<br><span class="sub">GitHub 最新:網頁 v${esc(v.app)} · APK v${esc(v.apkName||'?')}${v.t?'(檢查於 '+fmtD(v.t)+')':''}</span>`:'')+(msg?`<br>${msg}`:'');
  const a=$('#sUpdAuto');if(a)a.checked=S.updAuto!==false;const r=$('#bUpdReset');if(r)r.style.display=ai&&ai.ov?'':'none'}
 async function updGetV(){const r=await http(UPD.raw+'version.json?t='+Date.now(),{timeout:15000});if(r.status!==200)throw new Error('HTTP '+r.status);const v=JSON.parse(r.text);if(!v||!v.app)throw new Error('格式不對');v.t=Date.now();kvSet('updv',v);return v}
+async function updFp(v){try{if(!v.fp||!fpOk()||!NB.saveKV)return;const cur=(kvGet('fpv')||{}).v||'2.5.0';if(!verGt(v.fp,cur))return;
+ const r=await http(UPD.raw+'fp.html?t='+Date.now(),{timeout:90000});const t=r&&r.status===200?r.text:'';if(t.length<300000||!t.includes(`FP_VER='${v.fp}'`)||!/<\/html>\s*$/.test(t))return;
+ NB.saveKV('fp_ov',t);kvSet('fpv',{v:v.fp,t:Date.now()})}catch(e){}}
 async function updCheck(manual){if(UPD.busy)return;UPD.busy=1;try{
  if(!IS_APP||!NB.writeApp){if(manual){updInfoUI('網頁版每次打開就是最新的檔案;App 更新請用 App 版。');}return}
  if(manual)updInfoUI('檢查中…');let v;try{v=await updGetV()}catch(e){if(manual)updInfoUI(`<span class="no">✘ 連不上 GitHub(${esc(e.message||'網路')})</span>`);return}
- const ai=apkInfo()||{},code=+ai.code||0;
+ const ai=apkInfo()||{},code=+ai.code||0;updFp(v);
  /* 大改版:這支手機的 APK 太舊,新網頁用不了 → 下載新的安裝檔 */
  if(v.minApk&&code<+v.minApk){updInfoUI(`有新的大版本 <b>v${esc(v.apkName)}</b>,需要安裝新的安裝檔`);
   if(manual||kvGet('updAskApk')!==v.apk){kvSet('updAskApk',v.apk);const ok=await dlg(`<h3>📲 有新的大版本 v${esc(v.apkName)}</h3><p class="sub">這次更新包含 App 本身的新功能,需要下載新的安裝檔(APK)覆蓋安裝,資料都會保留。</p>${v.notes?`<p class="sub">${esc(v.notes)}</p>`:''}<div class="acts" style="justify-content:flex-end"><button class="btn" data-x="0">稍後</button><button class="btn pri" data-x="1">下載並安裝</button></div>`);
