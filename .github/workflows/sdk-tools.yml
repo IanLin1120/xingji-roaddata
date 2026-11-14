@@ -1,0 +1,32 @@
+name: 打包 Android 建置工具
+# 把 GitHub 機器上的 Android SDK 建置工具(android.jar、d8、aapt2、zipalign、apksigner)打包成 Release「sdk-tools」,
+# 讓 App 可以在其他環境建置。只在手動執行時跑。
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/sdk-tools.yml']
+permissions:
+  contents: write
+jobs:
+  pack:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 打包
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          ls "$ANDROID_HOME/build-tools" "$ANDROID_HOME/platforms"
+          BT=$(ls -d $ANDROID_HOME/build-tools/34.* | tail -1); PF=$ANDROID_HOME/platforms/android-34
+          [ -d "$PF" ] || PF=$(ls -d $ANDROID_HOME/platforms/android-3* | tail -1)
+          mkdir -p sdk/lib
+          cp $PF/android.jar sdk/
+          cp $BT/aapt2 $BT/zipalign sdk/
+          cp $BT/lib/d8.jar $BT/lib/apksigner.jar sdk/lib/
+          cp -r $BT/lib64 sdk/ 2>/dev/null || true
+          echo "$BT $PF" > sdk/VERSION
+          tar czf sdk-tools.tgz sdk
+          ls -la sdk-tools.tgz
+          gh release delete sdk-tools -y --cleanup-tag -R ${{ github.repository }} || true
+          gh release create sdk-tools sdk-tools.tgz -R ${{ github.repository }} --title "Android 建置工具" --notes "建置 APK 用(android.jar、d8、aapt2、zipalign、apksigner)" --latest=false
