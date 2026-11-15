@@ -6,9 +6,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: python3 -c "import urllib.parse" && python3 tools/secprobe.py
+      - run: pip install osmium
+      - run: curl -fL --retry 5 -o taiwan.osm.pbf https://download.geofabrik.de/asia/taiwan-latest.osm.pbf
+      - run: mkdir -p probe && python3 tools/secosm.py taiwan.osm.pbf probe/osm_sec.json
       - env: { GH_TOKEN: "${{ github.token }}" }
         run: |
-          tar czf probe.tgz probe
+          gzip -9 probe/osm_sec.json
           gh release view probe >/dev/null 2>&1 || gh release create probe --title probe --notes probe --latest=false
-          gh release upload probe probe.tgz --clobber
+          gh release upload probe probe/osm_sec.json.gz --clobber
