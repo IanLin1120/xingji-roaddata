@@ -1,0 +1,22 @@
+name: 區間測速路段資料
+# 每月用最新的 OpenStreetMap(公路局里程牌、道路)重新產生 app/sec.json;路段清單在 tools/secmk.py
+on:
+  schedule:
+    - cron: '23 20 3 * *'
+  workflow_dispatch: {}
+permissions: { contents: write }
+jobs:
+  sec:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install osmium
+      - run: curl -fL --retry 5 -o taiwan.osm.pbf https://download.geofabrik.de/asia/taiwan-latest.osm.pbf
+      - run: python3 tools/secosm.py taiwan.osm.pbf osm_sec.json && gzip -9 osm_sec.json
+      - run: python3 tools/secmk.py osm_sec.json.gz new_sec.json | tee sec_report.txt
+      - name: 筆數夠才更新
+        run: |
+          n=$(python3 -c "import json;print(len(json.load(open('new_sec.json'))['s']))")
+          if [ "$n" -ge 60 ]; then cp new_sec.json app/sec.json; fi
+          git config user.name github-actions; git config user.email github-actions@github.com
+          git add app/sec.json; git diff --cached --quiet || (git commit -m "更新區間測速路段資料" && git push)
