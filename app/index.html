@@ -4160,25 +4160,65 @@ async function camLoad(r){r.cams=[];r.ways=[];try{await Promise.race([rideMatch(
    else if(e.type==='way'&&e.geometry)r.ways.push({g:e.geometry.map(x=>[x.lat,x.lon]),t:{maxspeed:t.maxspeed,f:t['maxspeed:forward'],b:t['maxspeed:backward'],ow:t.oneway==='yes',hw:t.highway,up:t.bridge==='yes'||(+t.layer||0)>0||/motorway/.test(t.highway||''),name:t.name||''}})})}catch(e){}
  r.cams.sort((a,b)=>a.along-b.along);if(!r.lx||!r.lx.length){try{const D=await OSMC.for(r),IX=routeIdx(r);r.lx=[];D.nodes.forEach(n=>{if(n[3]!=='x')return;const sp=IX.snap(n[1],n[2]);if(sp.d<25&&!r.lx.some(x=>Math.abs(x.along-sp.along)<60))r.lx.push({lat:n[1],lon:n[2],along:sp.along,bar:n[4]||''})})}catch(e){}}
  if(r.lx){r.lx.sort((a,b)=>a.along-b.along);lxPrep(r)}
- /* 區間測速:路線上連續兩個區間點配成一段 */
-/* v2.4.2 區間測速配對:起點往前 0.3~20 公里內的下一個區間點當終點(同一位置的重複資料不算);
+ /* v2.5.1 區間測速:用固定的路段資料(全台區間測速的起訖與實際道路線形,GitHub 每週更新)。
+    路線經過整段(起點、終點、中間都在路線上)才算;雙向路段不管從哪一頭進入都是同一段,單向路段只有順著執法方向才算。
+    相鄰的兩段(例如中間只隔十幾公尺)各自獨立,不會被合併。沒有路段資料時才退回舊的「兩個區間點配成一段」。 */
+ let SD=null;try{SD=await secDB()}catch(e){}
+ if(SD&&SD.length){r.cams=r.cams.filter(c=>c.kind!=='sec');r.secs=secMatch(r,SD);
+  r.secs.forEach(x=>{r.cams.push({...x.a,kind:'sec',lim:x.lim,addr:x.name,what:'區間測速起點',secId:x.key});r.cams.push({...x.b,kind:'sec',lim:x.lim,addr:x.name,secEnd:1,secId:x.key})});r.cams.sort((a,b)=>a.along-b.along)}
+ else{/* v2.4.2 區間測速配對:起點往前 0.3~20 公里內的下一個區間點當終點(同一位置的重複資料不算);
     只有起點時,從說明文字的里程(例如「12K~15.5K」)推算終點;都沒有的話用 OSM 的區間測速路段 */
  const secs=r.cams.filter(c=>c.kind==='sec');r.secs=[];const used=new Set();const T=r.cum[r.cum.length-1];
  for(let i=0;i<secs.length;i++){if(used.has(i))continue;const a=secs[i],tx=(a.addr||'')+' '+(a.what||'');if(/終點|迄點|出口/.test(tx)&&!/起點/.test(tx))continue;let j=-1;
   for(let k=i+1;k<secs.length;k++){if(used.has(k))continue;const d=secs[k].along-a.along;if(d<300){used.add(k);continue}if(d>20000)break;j=k;break}
   if(j>=0){used.add(i);used.add(j);secs[j].secEnd=1;r.secs.push({a,b:secs[j],lim:a.lim||secs[j].lim,key:a.lat+','+a.lon});continue}
-  const m=tx.replace(/[kK][mM]/g,'K').match(/(\d+(?:\.\d+)?)\s*[K公]\D{0,8}?[~～\-－—至到]\s*(\d+(?:\.\d+)?)\s*[K公]/);
+  const m=null&&tx.replace(/[kK][mM]/g,'K').match(/(\d+(?:\.\d+)?)\s*[K公]\D{0,8}?[~～\-－—至到]\s*(\d+(?:\.\d+)?)\s*[K公]/);
   if(m){const L=Math.abs(+m[2]-+m[1])*1000;if(L>=300&&L<=20000){const al=Math.min(T,a.along+L),q=pointAt(r.pts,r.cum,al).p;r.secs.push({a,b:{lat:q[0],lon:q[1],along:al,kind:'sec',secEnd:1,virt:1},lim:a.lim,key:a.lat+','+a.lon,est:1});used.add(i)}}}
 
+ }
  if(N.on&&N.route===r)camDraw()}
+
+/* ---------- v2.5.1 區間測速路段資料 ---------- */
+const SEC={d:null,t:0};
+async function secDB(){if(SEC.d&&Date.now()-SEC.t<6*3600e3)return SEC.d;const c=kvGet('secdb');
+ if(c&&c.s&&Date.now()-(c.got||0)<7*864e5){SEC.d=c.s;SEC.t=Date.now();return SEC.d}
+ try{const r=await http(UPD.raw+'sec.json?t='+Math.floor(Date.now()/36e5),{timeout:20000});if(r&&r.status===200){const j=JSON.parse(r.text);if(j&&Array.isArray(j.s)&&j.s.length>10){j.got=Date.now();kvSet('secdb',j);SEC.d=j.s;SEC.t=Date.now();return SEC.d}}}catch(e){}
+ SEC.d=c&&c.s||null;SEC.t=Date.now();return SEC.d}
+/* 點到折線的距離(公尺)與在折線上的位置 */
+function plNear(P,lat,lon){const kx=Math.cos(lat*R2)*111320,ky=110540;let best=1e9,at=0,acc=0;
+ for(let i=0;i<P.length-1;i++){const ax=(P[i][1]-lon)*kx,ay=(P[i][0]-lat)*ky,bx=(P[i+1][1]-lon)*kx,by=(P[i+1][0]-lat)*ky,dx=bx-ax,dy=by-ay,L2=dx*dx+dy*dy,L=Math.sqrt(L2);
+  let t=L2?-(ax*dx+ay*dy)/L2:0;t=Math.max(0,Math.min(1,t));const x=ax+t*dx,y=ay+t*dy,d=Math.hypot(x,y);if(d<best){best=d;at=acc+t*L}acc+=L}return{d:best,at,len:acc}}
+function plLen(P){let L=0;for(let i=0;i<P.length-1;i++)L+=dist(P[i][0],P[i][1],P[i+1][0],P[i+1][1]);return L}
+function secMatch(r,SD){const out=[],T=r.cum[r.cum.length-1];let la0=90,la1=-90,lo0=180,lo1=-180;r.pts.forEach(p=>{if(p[0]<la0)la0=p[0];if(p[0]>la1)la1=p[0];if(p[1]<lo0)lo0=p[1];if(p[1]>lo1)lo1=p[1]});
+ const IX=typeof routeIdx==='function'?routeIdx(r):null,sn=(lat,lon)=>IX&&IX.snap?IX.snap(lat,lon):snap(r.pts,r.cum,lat,lon);
+ for(const s of SD){const P=s.p;if(!P||P.length<2)continue;if(!P.some(q=>q[0]>la0-.01&&q[0]<la1+.01&&q[1]>lo0-.01&&q[1]<lo1+.01))continue;
+  const len=s.len||plLen(P),A=sn(P[0][0],P[0][1]),B=sn(P[P.length-1][0],P[P.length-1][1]);
+  let a=A.d<35?A.along:null,b=B.d<35?B.along:null;
+  /* 路線從區間中間開始(重新規劃、在區間裡才開始導航):起點算在路線開頭 */
+  const st=plNear(P,r.pts[0][0],r.pts[0][1]),en=plNear(P,r.pts[r.pts.length-1][0],r.pts[r.pts.length-1][1]);
+  if(a==null&&b!=null&&st.d<30){if(s.dir==='f'||b>200){a=0}}
+  if(b==null&&a!=null&&en.d<30)continue;/* 終點在區間裡:沒走完整段,不算 */
+  if(a==null||b==null)continue;
+  if(s.dir==='f'&&a>b)continue;let x=Math.min(a,b),y=Math.max(a,b);const part=x===0&&st.d<30;
+  if(!part&&(y-x<len*.7||y-x>len*1.4+200))continue;
+  /* 中間也要在路線上(避免只是經過起點、終點附近的路口) */
+  let okm=true;for(const f of [.25,.5,.75]){const q=pointAt(P,cumDist(P),len*f).p,z=sn(q[0],q[1]);if(z.d>40||z.along<x-50||z.along>y+50){if(!(part&&plNear(P,r.pts[0][0],r.pts[0][1]).at>len*f)){okm=false;break}}}if(!okm)continue;
+  const pa=pointAt(r.pts,r.cum,x).p,pb=pointAt(r.pts,r.cum,y).p;
+  out.push({a:{lat:pa[0],lon:pa[1],along:x,kind:'sec'},b:{lat:pb[0],lon:pb[1],along:y,kind:'sec',secEnd:1},lim:s.lim||null,limN:s.limN||null,key:'S'+s.id,name:s.n||'',len,geo:P,part})}
+ /* 夜間速限(例如 20~6 時 50 公里) */
+ const h=new Date().getHours();out.forEach(x=>{if(x.limN&&(h>=20||h<6))x.lim=x.limN});
+ return out.sort((u,v)=>u.a.along-v.a.along)}
 let camLay=null,camGL=[];
 const CAM_ICON={fix:'📸',sec:'⏱',mob:'👮',red:'🚦',tech:'📹',noise:'🔊'};
 const camOn=k=>!(S.camOff||{})[k];
 function camDraw(){const r=N.route;if(!r||!r.cams)return;lxDraw(r);if(camLay)navMap.removeLayer(camLay);const vis=r.cams.filter(c=>camOn(c.kind));
  const mk=c=>`<div class="cammk ${c.kind}">${CAM_ICON[c.kind]}${c.lim?`<b>${c.lim}</b>`:''}</div>`;
  camLay=L.layerGroup(vis.map(c=>L.marker([c.lat,c.lon],{icon:L.divIcon({className:'',html:mk(c),iconSize:[44,24],iconAnchor:[22,24]}),interactive:false}))).addTo(navMap);
+ const sg=camOn('sec')?(r.secs||[]).filter(x=>x.geo):[];sg.forEach(x=>L.polyline(x.geo,{color:'#ff9500',weight:9,opacity:.45,lineCap:'butt',interactive:false}).addTo(camLay));
+ if(GLV.map){try{const m=GLV.map,fc={type:'FeatureCollection',features:sg.map(x=>({type:'Feature',properties:{},geometry:{type:'LineString',coordinates:x.geo.map(q=>[q[1],q[0]])}}))};
+  if(m.getSource('secs'))m.getSource('secs').setData(fc);else if(m.isStyleLoaded()){m.addSource('secs',{type:'geojson',data:fc});m.addLayer({id:'secs',type:'line',source:'secs',paint:{'line-color':'#ff9500','line-width':9,'line-opacity':.45}})}}catch(e){}}
  camGL.forEach(m=>m.remove());camGL=[];if(GLV.map)vis.forEach(c=>{const e=document.createElement('div');e.innerHTML=mk(c);camGL.push(new maplibregl.Marker({element:e.firstChild,anchor:'bottom'}).setLngLat([c.lon,c.lat]).addTo(GLV.map))})}
-function camClear(){lxClear();if(camLay){navMap.removeLayer(camLay);camLay=null}camGL.forEach(m=>m.remove());camGL=[];SC.ways=[];SC.sec=null;SC.said={};SC.limit=null;$('#hCam').style.display='none';$('#spd').classList.remove('on')}
+function camClear(){lxClear();if(camLay){navMap.removeLayer(camLay);camLay=null}try{GLV.map&&GLV.map.getSource('secs')&&GLV.map.getSource('secs').setData({type:'FeatureCollection',features:[]})}catch(e){}camGL.forEach(m=>m.remove());camGL=[];SC.ways=[];SC.sec=null;SC.said={};SC.limit=null;$('#hCam').style.display='none';$('#spd').classList.remove('on')}
 /* ---------- 目前道路速限(OpenStreetMap maxspeed) ---------- */
 function wayLimit(p){if(N.route&&N.route.ways)SC.ways=N.route.ways;if(!SC.ways.length)return null;let best=null;const r=N.route,segH=r?segHwy(r,N.along):null;SC.ways.forEach(w=>{if(segH!=null){const wh=w.t.up||/motorway/.test(w.t.hw||'')||/快速|高架|國道/.test(w.t.name||'');if(wh!==segH&&(w.t.up||/motorway|trunk/.test(w.t.hw||'')||!segH))return}for(let i=0;i<w.g.length-1;i++){const a=w.g[i],b=w.g[i+1],m=[(a[0]+b[0])/2,(a[1]+b[1])/2],d=dist(p.lat,p.lon,m[0],m[1]);
   if(d<Math.max(20,dist(a[0],a[1],b[0],b[1])/2+12)&&(!best||d<best.d)){const fwd=p.brg==null||Math.abs(((bearing(a[0],a[1],b[0],b[1])-p.brg)+540)%360-180)<90;best={d,w,fwd}}}});
@@ -4197,7 +4237,7 @@ function safetyTick(p){const kmh=p.spd!=null?p.spd*3.6:null,r=N.route,el=$('#spd
  /* v2.4.2 區間測速:進入區間後一直顯示到離開為止;平均時速用實際走的距離 ÷ 時間(重新規劃路線也不會歸零) */
  {const now=p.t||Date.now(),S0=SC.sec;if(S0&&S0.lp){const d=dist(S0.lp[0],S0.lp[1],p.lat,p.lon);if(d<250)S0.d+=d;S0.lp=[p.lat,p.lon]}
   if(r.secs){const s=r.secs.find(x=>N.along>=x.a.along-10&&N.along<=x.b.along+5),key=s?s.key:null;
-   if(s&&(!S0||S0.key!==key)){if(S0)secEnd(S0,now);SC.sec={key,s,t0:now,d:0,lp:[p.lat,p.lon]};sayQ(`區間測速開始${s.lim?',限速'+s.lim+'公里':''}${s.est?',全長約'+(Math.round((s.b.along-s.a.along)/100)/10)+'公里':''}`);banner(`⏱ 區間測速開始${s.lim?' · 限速 '+s.lim:''}`,3500);if(IS_APP&&NB.vibrate)try{NB.vibrate(200)}catch(e){}}
+   if(s&&(!S0||S0.key!==key)){if(S0)secEnd(S0,now);SC.sec={key,s,t0:now,d:0,lp:[p.lat,p.lon]};sayQ(`區間測速開始${s.lim?',限速'+s.lim+'公里':''}${s.len&&!s.part?',全長'+(Math.round(s.len/100)/10)+'公里':''}`);banner(`⏱ 區間測速開始${s.name?' · '+s.name:''}${s.lim?' · 限速 '+s.lim:''}`,3500);if(IS_APP&&NB.vibrate)try{NB.vibrate(200)}catch(e){}}
    else if(s)S0.s=s;/* 換了路線:區間改用新路線上的位置 */
    else if(S0&&!r.secs.some(x=>x.key===S0.key)&&N.along>40&&now-S0.t0>5000&&S0.d>=(S0.s.b.along-S0.s.a.along)*.9){secEnd(S0,now);SC.sec=null}
    else if(S0&&r.secs.some(x=>x.key===S0.key)){secEnd(S0,now);SC.sec=null}}}
@@ -6350,7 +6390,7 @@ setInterval(()=>navFavDraw(),1500);
    · 小改版:只更新 app/index.html → 手機下載新網頁存起來,下次開啟(或立即)套用,不用重裝
    · 大改版(要新的原生功能):minApk 提高 → 提示下載新的 APK
    · 安裝檔:每個版本一個 Release(app-v版本),可以選最新或舊版本下載到手機 */
-const APP_VER='2.5.0';
+const APP_VER='2.5.1';
 const UPD={repo:'IanLin1120/xingji-roaddata',raw:'https://raw.githubusercontent.com/IanLin1120/xingji-roaddata/main/app/',busy:0};
 function verGt(a,b){const x=String(a||0).split('.').map(Number),y=String(b||0).split('.').map(Number);for(let i=0;i<Math.max(x.length,y.length);i++){const d=(x[i]||0)-(y[i]||0);if(d)return d>0}return false}
 function apkInfo(){try{return IS_APP&&NB.appInfo?JSON.parse(NB.appInfo()):null}catch(e){return null}}

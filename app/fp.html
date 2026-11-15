@@ -2,7 +2,7 @@
 <html lang="zh-Hant" data-theme="light">
 <head>
 <meta charset="utf-8">
-<script>(function(){var V='2.5.0';function gt(a,b){a=String(a).split('.').map(Number);b=String(b).split('.').map(Number);for(var i=0;i<Math.max(a.length,b.length);i++){var d=(a[i]||0)-(b[i]||0);if(d)return d>0}return false}
+<script>(function(){var V='2.5.1';function gt(a,b){a=String(a).split('.').map(Number);b=String(b).split('.').map(Number);for(var i=0;i<Math.max(a.length,b.length);i++){var d=(a[i]||0)-(b[i]||0);if(d)return d>0}return false}
 try{if(!window.__fpOv&&location.search.indexOf('builtin')<0&&window.NB&&NB.loadKV){var s=NB.loadKV('fp_ov');var m=s&&s.length>300000&&s.match(/FP_VER='([\d.]+)'/);if(m&&gt(m[1],V)&&/<\/html>\s*$/.test(s)){window.__fpOv=1;document.write(s.replace(/<!DOCTYPE html>/i,'')+'<plaintext style="display:none">')}}}catch(e){}})()</script>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="theme-color" content="#efe5d3">
@@ -972,8 +972,11 @@ button,a,.day,.row,.prow,.vr,summary,.legbtn,.vbtn,.rbtn{touch-action:manipulati
 [data-acc=coffee]{--ac:#7a4e2d;--ac2:#6f7d4c}[data-acc=coffee][data-theme=dark]{--ac:#d39b6a}
 [data-acc=clay]{--ac:#b4553a;--ac2:#5f7a6a}[data-acc=clay][data-theme=dark]{--ac:#f08e6e}
 body.noglass .glass{backdrop-filter:none;-webkit-backdrop-filter:none;background:var(--glass)}
-/* 動畫頁、離線地圖下載、圖磚快取:合併到行跡導航後不需要 */
-#v-trip,#legEd,.fpHide{display:none!important}
+/* 離線地圖下載、圖磚快取:合併到行跡導航後不需要(地圖改用導航的向量地圖) */
+.fpHide,#tileChip{display:none!important}
+#tmapGL{position:absolute;inset:0;z-index:0}
+.tmapbox.gl #tmap{z-index:1}.tmapbox.gl #tmap.leaflet-container{background:transparent}
+[data-theme=dark] #tmapGL canvas{filter:brightness(.75) contrast(1.08) saturate(.85)}
 #nav{border-radius:999px;z-index:70;bottom:max(10px,env(safe-area-inset-bottom))}
 #nav .btn{padding:8px 0;font-size:11.5px;line-height:1.2}#nav .btn i{font-size:19px}
 [data-theme=dark] #nav .btn.on,[data-theme=dark] .btn.on{color:#1d1812}
@@ -1012,7 +1015,7 @@ body.noglass .glass{backdrop-filter:none;-webkit-backdrop-filter:none;background
     <div class="tbar"><button class="btn glass" id="tPrev">‹</button><button class="btn glass dbtn" id="tDate"></button><button class="btn glass" id="tNext">›</button><button class="btn glass sm" id="tToday">今天</button></div>
     <div id="tcal" class="glass calbox mini"></div>
     <div class="tmapbox">
-      <div id="tmap"></div>
+      <div id="tmapGL"></div><div id="tmap"></div>
       <div class="clock glass" id="tClock"><b>--:--</b><span>選擇日期後按 ▶ 播放</span></div>
       <div class="tchip glass" id="tileChip"></div>
       <div class="pick-banner glass" id="pickBn">👆 點地圖選擇轉乘站 <button class="btn sm" id="pickX">取消</button></div>
@@ -1059,7 +1062,7 @@ body.noglass .glass{backdrop-filter:none;-webkit-backdrop-filter:none;background
     <div class="lab">玻璃濃度 <span id="la"></span></div><input type="range" id="rA" min="5" max="85"></div>
     <div class="lab">地圖上顯示縣市界<input type="checkbox" id="sBnd"></div>
     <div class="perm fpHide"><b>🗺 地圖快取<small id="tcInfo">看過的地圖會存在手機裡,下次立刻顯示、沒網路也能看;播放動畫前會沿路線預先下載。</small></b><button class="btn glass sm" id="bTc">清除</button></div>
-    <div class="lab fpHide">動畫沿道路 / 貼合實際軌跡(需網路,查過會記住)<input type="checkbox" id="sRoad"></div>
+    <div class="lab">動畫沿道路 / 貼合實際軌跡(需網路,查過會記住)<input type="checkbox" id="sRoad"></div>
     <div class="lab">⚡ 流暢模式(關閉霧化特效,舊手機或資料多時建議開啟)<input type="checkbox" id="sLite"></div>
   </div>
   <div class="card glass fpHide"><h3>🗺 離線地圖下載</h3>
@@ -1072,9 +1075,9 @@ body.noglass .glass{backdrop-filter:none;-webkit-backdrop-filter:none;background
     <ol>
       <li><b>手機(新版)</b>:Google 地圖 App → 右上角頭像 → 你的時間軸 → 右上角「⋮」→ 位置資訊與隱私設定 → 匯出時間軸資料 → 得到 <code>Timeline.json</code>(選單名稱可能因版本略有不同)。</li>
       <li><b>舊版雲端資料</b>:到 takeout.google.com,只勾選「時間軸 / Location History」→ 下載並解壓縮 → <code>Semantic Location History</code> 內每月一個 JSON,可一次多選。</li>
-      <li>在下面選取 JSON 檔。會依上面的「停留門檻」過濾太短的停留;Google 記錄的交通方式與移動路線也會一併匯入。</li>
+      <li>在下面選取 JSON 檔。會依上面的「停留門檻」過濾太短的停留;Google 記錄的交通方式(步行、開車、公車、火車…)與移動路線也會一併匯入,行程動畫會自動帶入。</li>
     </ol>
-    <p>也可以匯入 <b>GPX / KML 軌跡檔</b>(GPS 記錄、運動或導航 App 匯出的路線)。</p>
+    <p>也可以匯入 <b>GPX / KML 軌跡檔</b>(GPS 記錄、運動或導航 App 匯出的路線),動畫會照那條路線播放。</p>
     <div class="acts"><label class="btn on">選取 JSON / GPX 檔案<input type="file" id="fG" accept=".json,.gpx,.kml,application/json,application/gpx+xml,text/plain,*/*" multiple hidden></label></div>
     <p id="gRes"></p>
     <p>匯入後的資料會永久保存在手機裡(不會上傳)。</p>
@@ -1104,7 +1107,7 @@ body.noglass .glass{backdrop-filter:none;-webkit-backdrop-filter:none;background
 <div id="onb" class="dlg"><div class="card glass dcard" id="onbB"></div></div>
 <div id="prog" class="glass"></div>
 <button id="pgTop" class="glass" title="回到頂端">⬆</button>
-<div id="nav" class="glass"><button class="btn on" data-t="cal"><i>📅</i>月曆</button><button class="btn" data-t="map"><i>🗺</i>地圖</button><button class="btn" data-t="reg"><i>🌏</i>地區</button><button class="btn" data-t="set"><i>⚙</i>設定</button></div>
+<div id="nav" class="glass"><button class="btn on" data-t="cal"><i>📅</i>月曆</button><button class="btn" data-t="map"><i>🗺</i>地圖</button><button class="btn" data-t="trip"><i>🎬</i>動畫</button><button class="btn" data-t="reg"><i>🌏</i>地區</button><button class="btn" data-t="set"><i>⚙</i>設定</button></div>
 
 <script>/**
  * MapLibre GL JS
@@ -1178,7 +1181,7 @@ const TW_TOWNS={"transform":{"scale":[2.920938519719076e-05,2.731862579922835e-0
 /* ================== 基本工具 ================== */
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)],p2=n=>String(n).padStart(2,'0');
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const FNB=window.Android||null,IS_APP=!!FNB;const FP_VER='2.5.0';
+const FNB=window.Android||null,IS_APP=!!FNB;const FP_VER='2.5.1';
 const st=(k,v)=>{try{if(v===undefined)return localStorage.getItem(k);localStorage.setItem(k,v)}catch(e){}};
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 const dk=t=>{const d=new Date(t);return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate())};
@@ -1471,6 +1474,15 @@ function glMarks(){const m=GLB.m;if(!m||!GLB.on3)return;GLB.mk.forEach(x=>x.remo
   GLB.mk.push(new maplibregl.Marker({element:e,anchor:'bottom-left',offset:[-6,2]}).setLngLat([o.p.lon,o.p.lat]).addTo(m))})}
 function glMe(){const m=GLB.m;if(!m||!GLB.on3||!ME)return;if(!GLB.me){const e=document.createElement('div');e.className='gme';GLB.me=new maplibregl.Marker({element:e}).setLngLat([ME.lon,ME.lat]).addTo(m)}else GLB.me.setLngLat([ME.lon,ME.lat])}
 document.addEventListener('click',e=>{if(e.target.id==='b3d')set3D(!GLB.on3)});
+/* 動畫頁的地圖:同一套向量地圖墊在 Leaflet 底下,跟著鏡頭(跟車、俯瞰)一起移動;載入失敗就保留原本的平面圖磚 */
+const GLT={m:null,ready:false};
+async function glTrip(){if(GLT.m||!window.maplibregl||!TR.map)return;let st;try{st=await glStyleFp()}catch(e){return}const lm=TR.map,c=lm.getCenter();
+ try{GLT.m=new maplibregl.Map({container:'tmapGL',style:st,center:[c.lng,c.lat],zoom:lm.getZoom()-1,interactive:false,attributionControl:false,fadeDuration:0,
+  localIdeographFontFamily:'"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif'})}catch(e){GLT.m=null;return}
+ const m=GLT.m,sync=()=>{try{const c=lm.getCenter();m.jumpTo({center:[c.lng,c.lat],zoom:lm.getZoom()-1})}catch(e){}};
+ m.on('load',()=>{GLT.ready=true;try{m.setLight({anchor:'viewport',intensity:.22,color:'#ffffff',position:[1.2,200,35]})}catch(e){}if(TR.tl)lm.removeLayer(TR.tl);$('.tmapbox').classList.add('gl');m.resize();sync()});
+ lm.on('move zoom viewreset',sync);lm.on('resize',()=>{m.resize();sync()});
+ lm.on('zoomanim',e=>{try{m.easeTo({center:[e.center.lng,e.center.lat],zoom:e.zoom-1,duration:250,easing:t=>1-Math.pow(1-t,3)})}catch(x){}})}
 const bStyle=()=>{const s=lyr==='sat';return{color:s?'#ffe7b0':'#8a5a2e',weight:s?2:1.6,opacity:.9,fill:false,dashArray:'6 4'}};
 function buildBnd(){if(bndLayer)return;const g=gj(),lab=L.layerGroup();bndGeo=L.geoJSON(g,{style:bStyle,interactive:false});
  g.features.forEach(f=>{const ps=f.geometry.type==='Polygon'?[f.geometry.coordinates]:f.geometry.coordinates;let best=null,ba=-1;
@@ -1904,7 +1916,7 @@ const TR={day:null,cal:{y:0,m:0,sel:''},map:null,plan:null,items:[],T:0,ph:0,pla
 function tripEnter(){if(TR.map&&TR.lv===DBV&&TR.ld===TR.day&&TR.plan){requestAnimationFrame(()=>TR.map.invalidateSize());return}if(!TR.day){const d=byDay();TR.day=(d[cal.sel]&&d[cal.sel].length>1)?cal.sel:(Object.keys(d).filter(k=>d[k].length>1).sort().pop()||cal.sel)}
  initTmap();setTimeout(()=>{TR.map.invalidateSize();tripLoad(true)},60)}
 function initTmap(){if(TR.map)return;TR.map=L.map('tmap',{zoomControl:false,attributionControl:true,zoomSnap:.25,preferCanvas:true}).setView([23.7,120.96],7);
- L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',{maxZoom:20,maxNativeZoom:19,attribution:'&copy; Esri',keepBuffer:4,updateWhenIdle:false,updateWhenZooming:false,updateInterval:120}).addTo(TR.map);L.control.zoom({position:'topright'}).addTo(TR.map);TR.lay=L.layerGroup().addTo(TR.map);
+ TR.tl=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',{maxZoom:20,maxNativeZoom:19,attribution:'&copy; Esri',keepBuffer:4,updateWhenIdle:false,updateWhenZooming:false,updateInterval:120});TR.tl.addTo(TR.map);glTrip();L.control.zoom({position:'topright'}).addTo(TR.map);TR.lay=L.layerGroup().addTo(TR.map);
  TR.map.on('moveend',()=>{TR.flying=false});TR.map.on('zoomstart',e=>{TR.userZoom=true});TR.map.on('zoomend',()=>{TR.userZoom=false;if(S.cam==='chase'&&TR.play&&S.chaseZ!==TR.map.getZoom()){S.chaseZ=TR.map.getZoom();saveS();prefetchTrip()}});
  $('#pCam').textContent=CAMS[S.cam]||CAMS.chase;setSpd(+S.spd||1);$('#spdReal').checked=!!S.realT;
  TR.map.on('click',e=>{if(!TR.pick)return;const{k}=TR.pick;TR.pick=null;$('#pickBn').classList.remove('on');
@@ -2020,7 +2032,7 @@ function tripTiles(){const P=TR.plan;if(!P||!P.stops.length||!TR.map)return[];co
  else if(S.cam==='seg'){segs.forEach(s=>{const b=L.latLngBounds(s.path).pad(.25);box(b,Math.min(16,TR.map.getBoundsZoom(b)))});P.stops.forEach(s=>cover(s.lat,s.lon,Math.max(14,TR.map.getZoom()),0))}
  else{const pts=[];segs.forEach(s=>pts.push(...s.path));P.stops.forEach(s=>pts.push([s.lat,s.lon]));const b=L.latLngBounds(pts).pad(.12);box(b,Math.min(16,TR.map.getBoundsZoom(b)))}
  return out.slice(0,5000)}
-let PFT=0;function prefetchTrip(){clearTimeout(PFT);PFT=setTimeout(()=>{if(!IS_APP||!TR.plan||TR.plan.stops.length<2)return;const u=tripTiles();if(!u.length)return;FNB.prefetchTiles(u.join('\n'))},600)}
+let PFT=0;function prefetchTrip(){clearTimeout(PFT);PFT=setTimeout(()=>{if(GLT.ready||!IS_APP||!TR.plan||TR.plan.stops.length<2)return;const u=tripTiles();if(!u.length)return;FNB.prefetchTiles(u.join('\n'))},600)}
 function tileProg(d){const c=$('#tileChip');if(!c)return;if(d.fin||!d.total){c.classList.remove('on');return}c.classList.add('on');c.textContent=`🗺 預載地圖 ${Math.round(d.done/d.total*100)}%`}
 /* 播放速度 */
 const spdTxt=v=>(Math.round(v*100)/100)+'×';
